@@ -1,7 +1,11 @@
+// This file is to generate the control signals to let all the PE in the PE Array to convolve 
+// one input row, and accumulate with the partial sums inside their ACCFIFO.
+// Also provide a give out result task API to make it possible to get the results from 
+// PEs while still computing.
 `timescale 1ns/1ns
 module ArrayConvOneRowCtrl #(parameter
-    num_pe_row = 2,
-    num_pe_col = 2,
+    num_pe_row = 4,
+    num_pe_col = 4,
     total_num_pe = num_pe_row * num_pe_col,
     //parameters for PE and FoFIR
 	nb_taps = 11,
@@ -40,7 +44,7 @@ module ArrayConvOneRowCtrl #(parameter
             output [total_num_pe-1: 0] pe_ctrl_ACCFIFO_write,
             output [total_num_pe-1: 0] pe_ctrl_ACCFIFO_read, //read when computing 
             output logic [total_num_pe-1: 0] pe_ctrl_ACCFIFO_read_to_outbuffer,//read when let data goto out buffer
-            output logic [total_num_pe-1: 0] pe_ctrl_out_mux_sel_PE,//
+            output logic [total_num_pe-1: 0] pe_ctrl_out_mux_sel_PE,// 0 is from ACCFIFO, 1 is from left PE
             output logic [total_num_pe-1: 0] pe_ctrl_out_to_right_pe_en,	
             output [total_num_pe-1: 0] pe_ctrl_add_zero,
             output logic [total_num_pe-1: 0] pe_ctrl_feed_zero_to_accfifo,
@@ -222,7 +226,7 @@ module ArrayConvOneRowCtrl #(parameter
                     .accfifo_head_to_tail(pe_ctrl_accfifo_head_to_tail[gen_j+gen_i*num_pe_col]),
                     .PD0(pe_ctrl_PD0[gen_j+gen_i*num_pe_col]), // <-
                     .AFIFO_empty(pe_ctrl_AFIFO_empty[gen_j+gen_i*num_pe_col]), // <-
-                    .afifo_out(pe_data_afifo_out), // <-
+                    .afifo_out(pe_data_afifo_out[gen_j+gen_i*num_pe_col]), // <-
                     // interact with array scheduler
                     .this_pe_done(single_pe_done[gen_i][gen_j]), 
                     .act_feed_done(act_feed_done[gen_i]), // <-
@@ -243,7 +247,7 @@ module ArrayConvOneRowCtrl #(parameter
     logic afifo_full_exist[num_pe_row];
     generate
         for(gen_i = 0; gen_i < num_pe_row; gen_i++) begin
-            assign afifo_full_exist[gen_i] = | pe_ctrl_AFIFO_full[gen_i * num_pe_col: (gen_i+1)*num_pe_col-1];
+            assign afifo_full_exist[gen_i] = | pe_ctrl_AFIFO_full[(gen_i+1)*num_pe_col-1 : gen_i * num_pe_col];
         end
     endgenerate
     /********** End of signals for array control ********************************/
@@ -268,11 +272,61 @@ module ArrayConvOneRowCtrl #(parameter
         return 1;
     endfunction
     
+
+    function logic is_all_accfifo_empty();
+        foreach(pe_ctrl_ACCFIFO_empty[i]) begin
+            if(!pe_ctrl_ACCFIFO_empty[i]) 
+                return 0;
+        end
+        return 1;
+    endfunction
+
+    task automatic array_give_out_results();
+        if(num_pe_col < 4) begin
+            $display("The array size should be at least 4x4 to call array_give_out_results");
+            $stop;
+        end
+        pe_ctrl_out_to_right_pe_en = 0;
+        pe_ctrl_ACCFIFO_read_to_outbuffer = 0;
+        pe_ctrl_out_mux_sel_PE = 0; // select data from ACCFIFO
+        #1;
+        while(!is_all_accfifo_empty()) begin
+            pe_ctrl_out_to_right_pe_en = 0;
+            pe_ctrl_ACCFIFO_read_to_outbuffer = {total_num_pe{1'b1}};
+            @(posedge clk);
+            pe_ctrl_ACCFIFO_read_to_outbuffer = 0;
+            pe_ctrl_out_to_right_pe_en = {total_num_pe{1'b1}}; //all 1
+            pe_ctrl_out_mux_sel_PE = 0; // select data from ACCFIFO
+            @(posedge clk);
+            //now all register in the systolic data chain has data.
+            pe_ctrl_out_mux_sel_PE = {total_num_pe{1'b1}}; //all 1 to select from left PE out
+            pe_ctrl_out_to_right_pe_en = {total_num_pe{1'b1}};
+            for(int i = 0; i < num_pe_col/2 - 1; i++) begin 
+                // /2 because double outbuffer bank
+                // -1 because the rightest pe has already its output saved in the register, so can be directly 
+                // used and the number of shift is less than half of the number of PE
+                @(posedge clk); 
+                /*
+                if(!is_all_accfifo_empty() && i == num_pe_col/2 - 2) begin
+                    //pe_ctrl_out_to_right_pe_en = ~pe_ctrl_out_to_right_pe_en; //all 1
+                    pe_ctrl_ACCFIFO_read_to_outbuffer = {total_num_pe{1'b1}};
+                end
+                */
+            end
+            #1;
+        end
+        //clear those signals
+        pe_ctrl_out_to_right_pe_en = 0;
+        pe_ctrl_ACCFIFO_read_to_outbuffer = 0;
+        pe_ctrl_out_mux_sel_PE = 0;
+    endtask
+    
     task automatic single_pe_give_out_results(
         input int pe_row_idx, 
         input int pe_col_idx
     );
         int idx_1d;
+        $display("The single_pe_give_out_results task is deprecated because it assume all data in ACCFIFO out given out continuously.");
         idx_1d = pe_row_idx * num_pe_col + pe_col_idx;
         pe_ctrl_out_mux_sel_PE[idx_1d] = 0;//select to get data from accfifo
         pe_ctrl_out_to_right_pe_en[idx_1d] = 0;
@@ -286,12 +340,38 @@ module ArrayConvOneRowCtrl #(parameter
         pe_ctrl_out_to_right_pe_en[idx_1d] = 0;
     endtask
 
+    task automatic array_dw_conv_one_row_task();
+        //assume all PE has their compute AFIFO filled.
+        //and in dw conv, we assume the top controller has known
+        //that current array should all work because they share the same
+        //weights, and if these weights are not zero, all PEs should work
+        waiting_for_each_row_finish = 0;
+        for(int c = 0; c < num_pe_col; c++) begin
+            // this column don't need to compute
+            for(int r = 0; r < num_pe_row; r++) begin
+                single_pe_scheduler_start[r][c] = WETCs[c] == 0 ? 0 : 1;
+            end
+        end
+        @(posedge clk);
+        while(!all_pe_done()) begin
+            waiting_for_each_row_finish = 1;
+            @(posedge clk);
+            #1;
+        end
+        waiting_for_each_row_finish = 0;
+        clear_all_pe_start();
+        clr_pe_scheduler_done = 1;
+        @(posedge clk);
+        clr_pe_scheduler_done = 0;
+    endtask
+
+
     task automatic array_normal_conv_one_row_task();
         // interact with all pes in the array
         // when come to this task, the act_this_row should have already been loaded from file
-        $display("@%d, come to array_normal_conv_one_row", $time);
+        //$display("@%d, come to array_normal_conv_one_row", $time);
         clear_act_feed_done();
-        array_conv_one_row_done = 0;
+        //array_conv_one_row_done = 0;
         for(int c = 0; c < num_pe_col; c++) begin
             // this column don't need to compute
             for(int r = 0; r < num_pe_row; r++) begin
@@ -342,7 +422,7 @@ module ArrayConvOneRowCtrl #(parameter
                 pe_ctrl_AFIFO_write[row_idx*num_pe_col+pe_col_idx] = single_pe_scheduler_start[row_idx][pe_col_idx];
             end
             pe_data_compressed_act_in[row_idx] = act_this_row[row_idx][act_idx];
-            $display("@%d, act_idx = %d, write data=%x", $time, act_idx, act_this_row[row_idx][act_idx]);
+            //$display("@%d, act_idx = %d, write data=%x", $time, act_idx, act_this_row[row_idx][act_idx]);
             @(posedge clk);
             // clear
         end
@@ -351,7 +431,7 @@ module ArrayConvOneRowCtrl #(parameter
     endtask
     // always block to start this module
     always@(posedge array_conv_one_row_start) begin
-        $display("@%d, come to array_conv_one_row_start trigged always", $time);
+        $display("@%d, come to array_conv_one_row_start trigged always. But it should be deprecated. Use the task!", $time);
         array_normal_conv_one_row_task();
         //triggered by a start signal and then return a synchronized done signal...
         array_conv_one_row_done = 1; 

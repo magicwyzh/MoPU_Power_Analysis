@@ -61,7 +61,8 @@ module PEArray_for_power_analysis #(parameter
         /**** End of ports for weights info**************/
 
         /**** Ports for systolic chain*******************/
-            output [num_pe_row-1: 0][output_width-1:0] out_fr_rightest_PE,    
+            output [num_pe_row-1: 0][output_width-1:0] out_fr_rightest_PE_even_col,    // %2 = 0
+            output [num_pe_row-1: 0][output_width-1:0] out_fr_rightest_PE_odd_col,     // %2 = 1
             output [total_num_pe-1: 0] pe_ctrl_ACCFIFO_empty,
         /****Configuration ports*************************/
             input [4-1: 0] n_ap,
@@ -74,14 +75,20 @@ module PEArray_for_power_analysis #(parameter
     logic [output_width-1: 0] out_fr_single_pe[num_pe_row-1: 0][num_pe_col-1: 0];
     logic [output_width-1: 0] out_to_single_pe[num_pe_row-1: 0][num_pe_col-1: 0];
     generate
+    // assume num_pe_col is even
     for(gen_r = 0; gen_r<num_pe_row;gen_r++) begin
-        assign out_fr_rightest_PE[gen_r] = out_fr_single_pe[gen_r][num_pe_col-1];
-        for(gen_c = 0; gen_c <= num_pe_row; gen_c++) begin
+        assign out_fr_rightest_PE_even_col[gen_r] = out_fr_single_pe[gen_r][num_pe_col-2];
+        assign out_fr_rightest_PE_odd_col[gen_r] = out_fr_single_pe[gen_r][num_pe_col-1];
+        for(gen_c = 0; gen_c <= num_pe_row; gen_c+=2) begin
             if(gen_c > 0) begin
-                assign out_to_single_pe[gen_r][gen_c] = out_fr_single_pe[gen_r][gen_c - 1];
+                //assign out_to_single_pe[gen_r][gen_c] = out_fr_single_pe[gen_r][gen_c - 1];
+                assign out_to_single_pe[gen_r][gen_c] = out_fr_single_pe[gen_r][gen_c - 2];
+                assign out_to_single_pe[gen_r][gen_c + 1] = out_fr_single_pe[gen_r][gen_c - 1];
             end
             else begin
+                //gen_c = 0
                 assign out_to_single_pe[gen_r][gen_c] = 0;
+                assign out_to_single_pe[gen_r][gen_c+1] = 0;
             end
         end
     end
@@ -110,9 +117,9 @@ module PEArray_for_power_analysis #(parameter
                 .index_update_en      (pe_ctrl_index_update_en[gen_c+gen_r*num_pe_col]      ),
                 .out_mux_sel          (pe_ctrl_out_mux_sel[gen_c+gen_r*num_pe_col]          ),
                 .out_reg_en           (pe_ctrl_out_reg_en[gen_c+gen_r*num_pe_col]           ),
-                .WRegs                (WRegs                ),
-                .WBPRs                (WBPRs                ),
-                .WETCs                (WETCs                ),
+                .WRegs                (WRegs[gen_c]                ),
+                .WBPRs                (WBPRs[gen_c]                ),
+                .WETCs                (WETCs[gen_c]                ),
                 .AFIFO_write          (pe_ctrl_AFIFO_write[gen_c+gen_r*num_pe_col]          ),
                 .AFIFO_read           (pe_ctrl_AFIFO_read[gen_c+gen_r*num_pe_col]           ),
                 .AFIFO_full           (pe_ctrl_AFIFO_full[gen_c+gen_r*num_pe_col]),
@@ -130,7 +137,7 @@ module PEArray_for_power_analysis #(parameter
                 .which_accfifo_for_compute (pe_ctrl_which_accfifo_for_compute[gen_c+gen_r*num_pe_col]),
                 .clk                  (clk                  ),
                 .rst_n                (rst_n                ),
-                .PD0                  (pe_ctrl_PD0                  ),
+                .PD0                  (pe_ctrl_PD0[gen_c+gen_r*num_pe_col]                  ),
                 .out_to_right_PE      (out_fr_single_pe[gen_r][gen_c]      ),
                 .ACCFIFO_empty        (pe_ctrl_ACCFIFO_empty[gen_c+gen_r*num_pe_col]        )
             );

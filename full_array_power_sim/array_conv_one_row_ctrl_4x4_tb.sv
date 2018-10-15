@@ -1,7 +1,7 @@
 `timescale 1ns/1ns
-module array_conv_one_row_ctrl_tb #(parameter 
-    num_pe_row = 1,
-    num_pe_col = 1,
+module array_conv_one_row_ctrl_4x4_tb #(parameter 
+    num_pe_row = 4,
+    num_pe_col = 4,
     total_num_pe = num_pe_row * num_pe_col,
     //parameters for PE and FoFIR
 	nb_taps = 11,
@@ -71,7 +71,8 @@ module array_conv_one_row_ctrl_tb #(parameter
         logic first_acc_flag;
         logic [4-1:0] n_ap;
         logic rst_n;
-        logic [num_pe_row-1: 0][output_width-1:0] out_fr_rightest_PE;
+        logic [num_pe_row-1: 0][output_width-1:0] out_fr_rightest_PE_even_col;
+        logic [num_pe_row-1: 0][output_width-1:0] out_fr_rightest_PE_odd_col;
         logic [total_num_pe-1: 0] pe_ctrl_ACCFIFO_empty;
     /**** End of Transactions with global scheduler*****/
 
@@ -158,7 +159,8 @@ module array_conv_one_row_ctrl_tb #(parameter
         .WRegs                        (WRegs                        ),
         .WBPRs                        (WBPRs                        ),
         .WETCs                        (WETCs                        ),
-        .out_fr_rightest_PE           (out_fr_rightest_PE           ),
+        .out_fr_rightest_PE_even_col  (out_fr_rightest_PE_even_col),
+        .out_fr_rightest_PE_odd_col   (out_fr_rightest_PE_odd_col),
         .pe_ctrl_ACCFIFO_empty        (pe_ctrl_ACCFIFO_empty        ),
         .n_ap                         (n_ap                         ),
         .clk                          (clk                          ),
@@ -179,9 +181,9 @@ module array_conv_one_row_ctrl_tb #(parameter
         first_acc_flag = 0;
         n_ap = 0;
         rst_n = 1;
-        WRegs[0] = 0;
-        WETCs[0] = 0;
-        WBPRs[0] = 0;
+        WRegs = 0;
+        WETCs = 0;
+        WBPRs = 0;
     end
 
     /*** some signals for easy debuggging**/
@@ -201,22 +203,37 @@ module array_conv_one_row_ctrl_tb #(parameter
         file_path = {file_path, "/", file_name};
         #5;
         rst_n = 0; 
-        first_acc_flag = 1;
+        
         @(posedge clk);
         rst_n = 1;
         @(posedge clk);
-        pe_ctrl_which_accfifo_for_compute[0] = 0;
-        for(int i = 0; i < kernel_size; i++) begin
-            WRegs[0][i*weight_width +: weight_width] = i+1;
-            BPEB_Enc_task(
-                WRegs[0][i*weight_width +: weight_width], /*in*/
-                n_ap, 
-                WBPRs[0][i*weight_bpr_width +: weight_bpr_width], /**encoded results**/
-                WETCs[0][i*ETC_width +: ETC_width]
-            );
+        pe_ctrl_which_accfifo_for_compute = 0;
+        for(int cc = 0; cc< num_pe_col; cc++) begin
+            for(int i = 0; i < kernel_size; i++) begin
+                if(i == 0) begin
+                    WRegs[cc][i*weight_width +: weight_width] = 0;
+                end
+                else if(i==1) begin
+                    WRegs[cc][i*weight_width +: weight_width] = -1;
+                end
+                else if(i == 2) begin
+                    WRegs[cc][i*weight_width +: weight_width] = 0;
+                end
+                //WRegs[cc][i*weight_width +: weight_width] = i+1;
+                BPEB_Enc_task(
+                    WRegs[cc][i*weight_width +: weight_width], /*in*/
+                    n_ap, 
+                    WBPRs[cc][i*weight_bpr_width +: weight_bpr_width], /**encoded results**/
+                    WETCs[cc][i*ETC_width +: ETC_width]
+                );
+            end
         end
-        DUT_Ctrl.load_compressed_act_rows_from_file(0, file_path);
+        //load act_this_row for each row
+        for(int i = 0; i < num_pe_row; i++) begin
+            DUT_Ctrl.load_compressed_act_rows_from_file(i, file_path);
+        end
         @(posedge clk);
+        first_acc_flag = 1;
         is_convolving = 1;
         DUT_Ctrl.array_normal_conv_one_row_task();
         is_convolving = 0;
@@ -231,21 +248,18 @@ module array_conv_one_row_ctrl_tb #(parameter
         repeat(5) begin
             @(posedge clk);
         end
-        pe_ctrl_which_accfifo_for_compute[0] = 1;
+        pe_ctrl_which_accfifo_for_compute = ~pe_ctrl_which_accfifo_for_compute;
         @(posedge clk);
         fork
             begin
                 is_loading_fr_accfifo = 1;
-                DUT_Ctrl.single_pe_give_out_results(0, 0);
+                DUT_Ctrl.array_give_out_results();
                 is_loading_fr_accfifo = 0;
             end
             begin
                 is_convolving = 1;
                 first_acc_flag = 1;
                 DUT_Ctrl.array_normal_conv_one_row_task();
-                is_convolving = 0;
-                //repeat(5) @(posedge clk);
-                is_convolving = 1;
                 first_acc_flag = 0;
                 DUT_Ctrl.array_normal_conv_one_row_task();
                 is_convolving = 0;
@@ -254,7 +268,11 @@ module array_conv_one_row_ctrl_tb #(parameter
         repeat(5) begin
             @(posedge clk);
         end
-        pe_ctrl_which_accfifo_for_compute[0] = 0;
+        pe_ctrl_which_accfifo_for_compute = 0;
+
+        is_loading_fr_accfifo = 1;
+        DUT_Ctrl.array_give_out_results();
+        is_loading_fr_accfifo = 0;
 
         $finish;
     end
