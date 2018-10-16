@@ -379,32 +379,32 @@ task compute_pe_col_workload(
     input int stride, 
     input int kernel_size
 );
-int outp_col_size;
-int per_pe_output_col;
-int res;
-//clear
-for(int i = 0; i < num_pe_col; i++) begin
-    for(int j = 0; j < 4; j++) begin
-        PE_workload[i][j] = 0;
-    end
-end
-outp_col_size =  ((inp_col_size - kernel_size) /stride ) + 1;
-per_pe_output_col = outp_col_size / num_pe_col;
-for(int i = 0; i < num_pe_col;i++) begin
-    PE_workload[i][2] = per_pe_output_col;
-end
-res = outp_col_size % per_pe_output_col;
-for(int i = 0; i <res; i++) begin
-    PE_workload[i][2] = PE_workload[i][2] + 1;
-end
-PE_workload[0][0] = 0;
-PE_workload[0][1] = kernel_size + (PE_workload[0][2]-1)*stride - 1;
-PE_workload[0][3] = kernel_size + (PE_workload[0][2]-1)*stride;
-for(int i = 1; i < num_pe_col;i++) begin
-    PE_workload[i][0] = PE_workload[i-1][1] - (stride==2?0:1);
-    PE_workload[i][1] = PE_workload[i][0] + kernel_size + (PE_workload[i][2]-1)*stride-1;
-    PE_workload[i][3] = PE_workload[i][1] - PE_workload[i][0] + 1;
-end
+	int outp_col_size;
+	int per_pe_output_col;
+	int res;
+	//clear
+	for(int i = 0; i < num_pe_col; i++) begin
+		for(int j = 0; j < 4; j++) begin
+			PE_workload[i][j] = 0;
+		end
+	end
+	outp_col_size =  ((inp_col_size - kernel_size) /stride ) + 1;
+	per_pe_output_col = outp_col_size / num_pe_col;
+	for(int i = 0; i < num_pe_col;i++) begin
+		PE_workload[i][2] = per_pe_output_col;
+	end
+	res = outp_col_size % per_pe_output_col;
+	for(int i = 0; i <res; i++) begin
+		PE_workload[i][2] = PE_workload[i][2] + 1;
+	end
+	PE_workload[0][0] = 0;
+	PE_workload[0][1] = kernel_size + (PE_workload[0][2]-1)*stride - 1;
+	PE_workload[0][3] = kernel_size + (PE_workload[0][2]-1)*stride;
+	for(int i = 1; i < num_pe_col;i++) begin
+		PE_workload[i][0] = PE_workload[i-1][1] - (stride==2?0:1);
+		PE_workload[i][1] = PE_workload[i][0] + kernel_size + (PE_workload[i][2]-1)*stride-1;
+		PE_workload[i][3] = PE_workload[i][1] - PE_workload[i][0] + 1;
+	end
 endtask
 
 function int min(input int a, input int b);

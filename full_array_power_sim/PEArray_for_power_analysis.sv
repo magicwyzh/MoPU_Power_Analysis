@@ -17,6 +17,7 @@ module PEArray_for_power_analysis #(parameter
         /**** Ports to control the PE array (started with ``pe_ctrl/data")*****/
         // AFIFO data
             input [num_pe_row-1: 0][compressed_act_width-1: 0] pe_data_compressed_act_in,
+            input [num_pe_col-1: 0][compressed_act_width-1: 0] pe_data_last_row_shadow_AFIFO_data_in,//new
         // configuration
             input [total_num_pe-1: 0][4-1: 0] pe_ctrl_n_ap,
         // control ports for PAMAC
@@ -45,6 +46,10 @@ module PEArray_for_power_analysis #(parameter
             input [total_num_pe-1: 0] pe_ctrl_feed_zero_to_accfifo,
             input [total_num_pe-1: 0] pe_ctrl_accfifo_head_to_tail,
             input [total_num_pe-1: 0] pe_ctrl_which_accfifo_for_compute,
+            input [total_num_pe-1: 0] pe_ctrl_which_afifo_for_compute, //new
+            input [total_num_pe-1: 0] pe_ctrl_compute_AFIFO_read_delay_enable,//new
+            input [num_pe_col-1: 0] pe_ctrl_last_row_shadow_AFIFO_write,//new
+
         /**** End of Ports to control the PE array***/
 
         /**** Ports from PE array for some info ****/
@@ -74,12 +79,15 @@ module PEArray_for_power_analysis #(parameter
     genvar gen_r, gen_c, gen_idx_1d;
     logic [output_width-1: 0] out_fr_single_pe[num_pe_row-1: 0][num_pe_col-1: 0];
     logic [output_width-1: 0] out_to_single_pe[num_pe_row-1: 0][num_pe_col-1: 0];
+    logic upper_PE_shadow_afifo_write[num_pe_row-1:0][num_pe_col-1:0];
+    logic shadow_AFIFO_write[num_pe_row-1:0][num_pe_col-1:0];
+    logic [compressed_act_width-1: 0] shadow_AFIFO_data_in[num_pe_row-1:0][num_pe_col-1:0];
     generate
     // assume num_pe_col is even
     for(gen_r = 0; gen_r<num_pe_row;gen_r++) begin
         assign out_fr_rightest_PE_even_col[gen_r] = out_fr_single_pe[gen_r][num_pe_col-2];
         assign out_fr_rightest_PE_odd_col[gen_r] = out_fr_single_pe[gen_r][num_pe_col-1];
-        for(gen_c = 0; gen_c <= num_pe_row; gen_c+=2) begin
+        for(gen_c = 0; gen_c < num_pe_col; gen_c+=2) begin
             if(gen_c > 0) begin
                 //assign out_to_single_pe[gen_r][gen_c] = out_fr_single_pe[gen_r][gen_c - 1];
                 assign out_to_single_pe[gen_r][gen_c] = out_fr_single_pe[gen_r][gen_c - 2];
@@ -89,6 +97,19 @@ module PEArray_for_power_analysis #(parameter
                 //gen_c = 0
                 assign out_to_single_pe[gen_r][gen_c] = 0;
                 assign out_to_single_pe[gen_r][gen_c+1] = 0;
+            end
+        end
+
+    end
+    for(gen_r = 0; gen_r<num_pe_row;gen_r++) begin
+        for(gen_c = 0; gen_c<num_pe_col;gen_c++) begin
+            if(gen_r < num_pe_row-1) begin
+                assign shadow_AFIFO_write[gen_r][gen_c] = upper_PE_shadow_afifo_write[gen_r+1][gen_c];
+                assign shadow_AFIFO_data_in[gen_r][gen_c] = pe_data_afifo_out[(gen_r+1) * num_pe_col + gen_c];
+            end
+            else begin
+                assign shadow_AFIFO_write[gen_r][gen_c] = pe_ctrl_last_row_shadow_AFIFO_write[gen_c];
+                assign shadow_AFIFO_data_in[gen_r][gen_c] = pe_data_last_row_shadow_AFIFO_data_in[gen_c];
             end
         end
     end
@@ -124,6 +145,11 @@ module PEArray_for_power_analysis #(parameter
                 .AFIFO_read           (pe_ctrl_AFIFO_read[gen_c+gen_r*num_pe_col]           ),
                 .AFIFO_full           (pe_ctrl_AFIFO_full[gen_c+gen_r*num_pe_col]),
                 .AFIFO_empty          (pe_ctrl_AFIFO_empty[gen_c+gen_r*num_pe_col]),
+                .shadow_AFIFO_data_in (shadow_AFIFO_data_in[gen_r][gen_c]),
+                .shadow_AFIFO_write   (shadow_AFIFO_write[gen_r][gen_c]),
+                .upper_PE_shadow_afifo_write (upper_PE_shadow_afifo_write[gen_r][gen_c]),
+                .compute_AFIFO_read_delay_enable(pe_ctrl_compute_AFIFO_read_delay_enable[gen_c+gen_r*num_pe_col]),
+                .which_afifo_for_compute(pe_ctrl_which_afifo_for_compute[gen_r*num_pe_col+gen_c]),
                 .afifo_data_out        (pe_data_afifo_out[gen_c+gen_r*num_pe_col]),
                 .ACCFIFO_write        (pe_ctrl_ACCFIFO_write[gen_c+gen_r*num_pe_col]        ),
                 .ACCFIFO_read_0         (pe_ctrl_ACCFIFO_read[gen_c+gen_r*num_pe_col]         ),

@@ -59,6 +59,7 @@ module SinglePEScheduler #(parameter
             output logic this_pe_done,
             input first_acc_flag, 
             input clr_pe_scheduler_done,
+			
         /**** end of ports with array scheduler****/
         
         /**** Misc ports***************/
@@ -67,7 +68,9 @@ module SinglePEScheduler #(parameter
 /***** Main control in a PE scheduler *************/
 logic finish_condition;
 assign finish_condition = AFIFO_empty && act_feed_done;
+int input_count;
 always@(posedge start) begin
+	input_count = 0;
     ACCFIFO_write = 0;
     AFIFO_read = 0;
     ACCFIFO_read = 0;
@@ -90,10 +93,16 @@ always@(posedge start) begin
 					PAMAC_MDecomp,
 					PAMAC_AWDecomp
 				);
-				// read ACCFIFO when valid_result_trig = 1, then write accumulated result to ACCFIFO
-				// the ACCFIFO_write should be set to zero one cycle after this task call.
-				ACCFIFO_ctrl_process_when_computing();
+				begin
+					// the first kernel_size-1 outputs are not required..
+					if(!(input_count < kernel_size-1)) begin
+						// read ACCFIFO when valid_result_trig = 1, then write accumulated result to ACCFIFO
+						// the ACCFIFO_write should be set to zero one cycle after this task call.
+						ACCFIFO_ctrl_process_when_computing();								
+					end
+				end
 			join
+			input_count += 1;
         end
         else begin
             @(posedge clk); 

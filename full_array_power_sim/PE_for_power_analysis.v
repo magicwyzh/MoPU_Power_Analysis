@@ -1,5 +1,5 @@
 module PE_for_power_analysis #(parameter
-	AFIFO_size = 8,
+	AFIFO_size = 16,
 	ACCFIFO_size = 32,
 	//parameters for FoFIR
 	nb_taps = 5,
@@ -49,21 +49,29 @@ module PE_for_power_analysis #(parameter
 	input [ETC_width*nb_taps-1: 0] WETCs,
 	
 	/************Control Signals for FIFOs***************/
-	input AFIFO_write,
-	input AFIFO_read,
+	input AFIFO_write, // for compute AFIFO
+	input AFIFO_read, // for compute AFIFO
+    output AFIFO_full, // for compute AFIFO
+    output AFIFO_empty, // for compute AFIFO
+    //for double afifos
+    input [compressed_act_width-1: 0] shadow_AFIFO_data_in,
+    input shadow_AFIFO_write,
+    output upper_PE_shadow_afifo_write,
+    input compute_AFIFO_read_delay_enable, // enable the upper_PE_shadow_afifo_write to be set a cycle after when its compute_AFIFO_read=1
+
 	input ACCFIFO_write,
 	input ACCFIFO_read_0,
     input ACCFIFO_read_1, 
 	input out_mux_sel_PE,//
 	input out_to_right_pe_en,	
-    output AFIFO_full,
-    output AFIFO_empty,
+
     output [compressed_act_width-1: 0] afifo_data_out,
 	//in the first accumulation, zero should be added
     input add_zero,
     input feed_zero_to_accfifo,
     input accfifo_head_to_tail,
     input which_accfifo_for_compute,
+    input which_afifo_for_compute,
     
 	input clk,
 	input rst_n,
@@ -107,6 +115,7 @@ U_FOFIR_0(
 
 
 assign afifo_data_out = compressed_act_fr_afifo;
+/*
 FIFO #(
     .nb_data               ( AFIFO_size                            ),
     .L_data                         ( compressed_act_width                            ),
@@ -123,6 +132,28 @@ AFIFO(
     .read                           ( AFIFO_read                          ),
     .clk                            ( clk                           ),
     .rst_n                          ( rst_n                         )
+);
+*/
+wire delayed_compute_AFIFO_read;
+assign upper_PE_shadow_afifo_write = delayed_compute_AFIFO_read;
+double_AFIFO #(
+    .nb_data               ( AFIFO_size                            ),
+    .data_width                         ( compressed_act_width                            ),
+    .SRAM_IMPL                      ( 0                             ))
+u_double_AFIFO(
+	.shadow_AFIFO_data_in            (shadow_AFIFO_data_in            ),
+    .compute_AFIFO_data_in           (compressed_act_in           ),
+    .shadow_AFIFO_write              (shadow_AFIFO_write              ),
+    .compute_AFIFO_read              (AFIFO_read              ),
+    .compute_AFIFO_write             (AFIFO_write             ),
+    .delayed_compute_AFIFO_read      (delayed_compute_AFIFO_read      ),
+    .compute_AFIFO_full              (AFIFO_full              ),
+    .compute_AFIFO_empty             (AFIFO_empty             ),
+    .compute_AFIFO_data_out          (compressed_act_fr_afifo          ),
+    .which_AFIFO_for_compute         (which_afifo_for_compute         ),
+    .compute_AFIFO_read_delay_enable (compute_AFIFO_read_delay_enable ),
+    .clk                             (clk                             ),
+    .rst_n                           (rst_n                           )
 );
 
 wire [output_width-1: 0] ACCFIFO_out_for_compute, adder_out, ACCFIFO_out_for_global;
