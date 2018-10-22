@@ -69,12 +69,11 @@ module ArrayConvOneRowCtrl #(parameter
 
         /**** Transactions with global scheduler *******/
             input clk,
-            input array_conv_one_row_start,
-            output logic array_conv_one_row_done,
             input int kernel_size, 
             input int quantized_bits, 
             input first_acc_flag,
-            input [4-1:0] n_ap
+            input [4-1:0] n_ap,
+            output logic array_next_cycle_data_to_outbuff_valid
         /**** End of Transactions with global scheduler*****/
     );
     genvar gen_i, gen_j, gen_idx_1d;
@@ -97,6 +96,7 @@ module ArrayConvOneRowCtrl #(parameter
     // activations are in the shadow AFIFO be fed in the previous stage.
     int pe_workload_start_col[num_pe_col-1:0];
     int pe_workload_end_col[num_pe_col-1:0];
+    int pe_workload_out_size[num_pe_col-1: 0];
     /******** End of Variables saving data and ctrl info*****/
 
     /******** Wires between array scheduler and SinglePEScheduler****/
@@ -120,12 +120,25 @@ module ArrayConvOneRowCtrl #(parameter
             int fp;
             fp = $fopen(file_full_path, "r");
             // when is_compressed is assert, each file is a file of a row
+            if(fp==0) begin
+                $display("@%t, load_compressed_act_rows:Error Open file:%s", $time, file_full_path);
+                $stop;
+            end
             act_this_row[pe_row_idx].delete();
             while(!$feof(fp)) begin
                 n = $fscanf(fp, "%x\n", r);
                 act_this_row[pe_row_idx].push_back(r);
             end
             $fclose(fp);
+        endtask
+        task load_zero_act_row_to_act_this_row(
+            input int pe_row_idx, 
+            input int fm_size
+            );
+            logic [activation_width-1: 0] r;
+            r = fm_size;
+            act_this_row[pe_row_idx].delete();
+            act_this_row[pe_row_idx].push_back({1'b1, r});// whole row of zero.
         endtask
     // for potential implementation of depthwise conv
         task load_infm2d_from_file(
@@ -145,6 +158,10 @@ module ArrayConvOneRowCtrl #(parameter
                 infm2d_buffer = new [infm_height*infm_width];
             end
             fp = $fopen(file_full_path, "r");
+            if(fp==0) begin
+                $display("@%t, load_zero_act_row_to_act_this_row:Error Open file:%s", $time, file_full_path);
+                $stop;
+            end
             while(!$feof(fp)) begin
                 n = $fscanf(fp, "%x\n", r);
                 infm2d_buffer[pix] = r;
@@ -164,7 +181,12 @@ module ArrayConvOneRowCtrl #(parameter
             //feed several cols of a row in infm2d to a specific PE.
             for(int c = infm2d_start_col; c<=infm2d_end_col;c++) begin
                 pe_ctrl_AFIFO_write[pe_array_row_idx*num_pe_col+pe_array_col_idx] = 1;
-                pe_data_compressed_act_in[pe_array_row_idx] = {1'b0, infm2d_buffer[infm2d_row*infm2d_width+c]};
+                if(infm2d_row < infm2d_height) begin
+                    pe_data_compressed_act_in[pe_array_row_idx] = {1'b0, infm2d_buffer[infm2d_row*infm2d_width+c]};
+                end
+                else begin
+                    pe_data_compressed_act_in[pe_array_row_idx] = 0;//feed zero and the results are no use
+                end
                 @(posedge clk);
             end
             pe_ctrl_AFIFO_write[pe_array_row_idx*num_pe_col+pe_array_col_idx] = 0;
@@ -182,13 +204,28 @@ module ArrayConvOneRowCtrl #(parameter
                     fork
                         automatic int r_offset_temp = r_offset;
                         begin
-                            feed_infm2d_to_single_pe(
-                                infm2d_start_row + r_offset_temp,
-                                infm2d_start_col,
-                                infm2d_end_col,
-                                r_offset_temp, 
-                                pe_array_col_idx
-                                );
+                            // when output height is smaller than half the pe row, then reuse the bottom-half of the PE Array
+                            // Here just simulate the process for power analysis by just copying data in the upper half,
+                            // not correct computing.
+                            if((infm2d_height - kernel_size + 1) < (num_pe_row/2) && r_offset_temp >= (num_pe_row/2)) begin
+                                //$display("load_infm2d_to_array_col: Dummy Load. infm2d_height = %d, r_offset_temp=%d", infm2d_height, r_offset_temp);
+                                feed_infm2d_to_single_pe(
+                                    infm2d_start_row + r_offset_temp - (num_pe_row/2),
+                                    infm2d_start_col,
+                                    infm2d_end_col,
+                                    r_offset_temp, 
+                                    pe_array_col_idx
+                                    );
+                            end
+                            else begin
+                                feed_infm2d_to_single_pe(
+                                    infm2d_start_row + r_offset_temp,
+                                    infm2d_start_col,
+                                    infm2d_end_col,
+                                    r_offset_temp, 
+                                    pe_array_col_idx
+                                    );
+                            end
                         end
                     join_none
                 end
@@ -202,17 +239,46 @@ module ArrayConvOneRowCtrl #(parameter
             clear_act_feed_done();
             //here assume the pe workload has already set
             for(int col_idx = 0; col_idx < num_pe_col; col_idx++) begin
-                load_infm2d_to_array_col(
-                    infm2d_start_row,
-                    pe_workload_start_col[col_idx],
-                    pe_workload_end_col[col_idx],
-                    col_idx
-                );
+                if((infm2d_width - kernel_size + 1) > (num_pe_col/2)) begin
+                    // normal dw conv with large fm_size
+                    if(pe_workload_out_size[col_idx] > 0) begin
+                        load_infm2d_to_array_col(
+                            infm2d_start_row,
+                            pe_workload_start_col[col_idx],
+                            pe_workload_end_col[col_idx],
+                            col_idx
+                        );
+                    end
+                end
+                else begin
+                    // dw conv when the fm size is smaller than half of the pe array
+                    if(col_idx < (num_pe_col/2)) begin
+                        //like the normal case
+                        if(pe_workload_out_size[col_idx] > 0) begin
+                            load_infm2d_to_array_col(
+                                infm2d_start_row,
+                                pe_workload_start_col[col_idx],
+                                pe_workload_end_col[col_idx],
+                                col_idx
+                            );  
+                        end
+                    end
+                    else begin
+                        //col_idx > num_pe_col/2
+                        if(pe_workload_out_size[col_idx-(num_pe_col/2)] > 0) begin
+                            load_infm2d_to_array_col(
+                                infm2d_start_row,
+                                pe_workload_start_col[col_idx-(num_pe_col/2)],
+                                pe_workload_end_col[col_idx - (num_pe_col/2)],
+                                col_idx
+                            );                              
+                        end
+                    end
+                end
                 for(int r = 0; r<num_pe_row;r++) begin
                     act_feed_done[r][col_idx] = 1;
                 end
             end
-
         endtask
 
         task automatic feed_last_pe_row_single_pe_shadow_afifo(
@@ -223,7 +289,12 @@ module ArrayConvOneRowCtrl #(parameter
         );
             pe_ctrl_last_row_shadow_AFIFO_write[pe_col_idx] = 1;
             for(int cc = infm2d_start_idx; cc <= infm2d_end_idx; cc++) begin
-                pe_data_last_row_shadow_AFIFO_data_in[pe_col_idx] = infm2d_buffer[infm2d_width*infm2d_row_idx + cc]; 
+                if(infm2d_row_idx < infm2d_height) begin
+                    pe_data_last_row_shadow_AFIFO_data_in[pe_col_idx] = {1'b0, infm2d_buffer[infm2d_width*infm2d_row_idx + cc]}; 
+                end
+                else begin
+                    pe_data_last_row_shadow_AFIFO_data_in[pe_col_idx] = 0;
+                end
                 @(posedge clk);
             end
             pe_ctrl_last_row_shadow_AFIFO_write[pe_col_idx] = 0;
@@ -239,12 +310,14 @@ module ArrayConvOneRowCtrl #(parameter
                     fork 
                         automatic int c = i;
                         begin
-                            feed_last_pe_row_single_pe_shadow_afifo(
-                                c, //pe_col_idx
-                                pe_workload_start_col[c], 
-                                pe_workload_end_col[c],
-                                infm2d_row
-                            );
+                            if(pe_workload_out_size[c] > 0) begin
+                                feed_last_pe_row_single_pe_shadow_afifo(
+                                    c, //pe_col_idx
+                                    pe_workload_start_col[c], 
+                                    pe_workload_end_col[c],
+                                    infm2d_row
+                                );
+                            end
                         end
                     join_none
                 end
@@ -260,21 +333,32 @@ module ArrayConvOneRowCtrl #(parameter
         	int per_pe_output_col;
 	        int res;
             int out_size[num_pe_col];
-            inp_col_size = infm2d_width;
+            //$display("dw_conv_pe_workload_gen, inp_col_size = %d, kernel_size = %d, stride = %d", inp_col_size, kernel_size, stride);
             outp_col_size =  ((inp_col_size - kernel_size) /stride ) + 1;
 	        per_pe_output_col = outp_col_size / num_pe_col;
-            res = outp_col_size % per_pe_output_col;
+            if(per_pe_output_col > 0) begin
+                res = outp_col_size % per_pe_output_col;
+            end
+            else begin
+                res = outp_col_size;
+            end
+            //$display("outp_col_size = %d, num_pe_col = %d, per_pe_out_col = %d, div_result=%d, res = %d", outp_col_size, num_pe_col, per_pe_output_col,outp_col_size / num_pe_col, res);
             for(int i = 0; i<num_pe_col; i++) begin
                 out_size[i] = per_pe_output_col;
                 if(i < res) begin
                     out_size[i] += 1;
                 end
+                //$display("out_size[%d] = %d", i, out_size[i]);
+                pe_workload_out_size[i] = out_size[i];
+                //$display("out_size[%d] = %d", i, out_size[i]);
             end
             pe_workload_start_col[0] = 0;
             pe_workload_end_col[0] = kernel_size+(out_size[0]-1)*stride -1;
+            //$display("start_col[%d] = %d, end_col[%d] = %d", 0, pe_workload_start_col[0], 0, pe_workload_end_col[0]);
             for(int i = 1; i < num_pe_col; i++) begin
                 pe_workload_start_col[i] = pe_workload_end_col[i-1] - (stride==2?0:1);
                 pe_workload_end_col[i] = pe_workload_start_col[i] + kernel_size + (out_size[i]-1)*stride-1;
+                //$display("start_col[%d] = %d, end_col[%d] = %d", i, pe_workload_start_col[i], i, pe_workload_end_col[i]);
             end
 
         endtask
@@ -383,19 +467,30 @@ module ArrayConvOneRowCtrl #(parameter
             $display("The array size should be at least 4x4 to call array_give_out_results");
             $stop;
         end
+        array_next_cycle_data_to_outbuff_valid = 0;
         pe_ctrl_out_to_right_pe_en = 0;
         pe_ctrl_ACCFIFO_read_to_outbuffer = 0;
         pe_ctrl_out_mux_sel_PE = 0; // select data from ACCFIFO
         
-        
+        if(kernel_size==3) begin
+            //the first two output are not required because we do not padding
+            //just readout but not used to update the systolic data chain reg
+            for(int i = 0; i < 2;i++) begin
+                pe_ctrl_ACCFIFO_read_to_outbuffer = {total_num_pe{1'b1}};
+                @(posedge clk);
+            end
+            pe_ctrl_ACCFIFO_read_to_outbuffer = 0;
+        end
+
         pe_ctrl_out_to_right_pe_en = 0;
         pe_ctrl_ACCFIFO_read_to_outbuffer = {total_num_pe{1'b1}};
-        @(posedge clk);        
+        @(posedge clk);
         #1;
         while(!is_all_accfifo_empty()) begin
             pe_ctrl_ACCFIFO_read_to_outbuffer = 0;
             pe_ctrl_out_to_right_pe_en = {total_num_pe{1'b1}}; //all 1
             pe_ctrl_out_mux_sel_PE = 0; // select data from ACCFIFO
+            array_next_cycle_data_to_outbuff_valid = 1;
             @(posedge clk);
             //now all register in the systolic data chain has data.
             pe_ctrl_out_mux_sel_PE = {total_num_pe{1'b1}}; //all 1 to select from left PE out
@@ -417,7 +512,19 @@ module ArrayConvOneRowCtrl #(parameter
             end
             #1;
         end
+        // shift out again
+        pe_ctrl_out_to_right_pe_en = {total_num_pe{1'b1}}; 
+        pe_ctrl_out_mux_sel_PE = 0;
+        array_next_cycle_data_to_outbuff_valid = 1;
+        pe_ctrl_ACCFIFO_read_to_outbuffer = 0;
+        @(posedge clk);
+        pe_ctrl_out_mux_sel_PE = {total_num_pe{1'b1}};
+        pe_ctrl_out_to_right_pe_en = {total_num_pe{1'b1}};
+        for(int i = 0; i < num_pe_col/2 - 1; i++) begin 
+            @(posedge clk); 
+        end       
         //clear those signals
+        array_next_cycle_data_to_outbuff_valid = 0;
         pe_ctrl_out_to_right_pe_en = 0;
         pe_ctrl_ACCFIFO_read_to_outbuffer = 0;
         pe_ctrl_out_mux_sel_PE = 0;
@@ -512,6 +619,7 @@ module ArrayConvOneRowCtrl #(parameter
             // this column don't need to compute
             for(int r = 0; r < num_pe_row; r++) begin
                 single_pe_scheduler_start[r][c] = WETCs[c] == 0 ? 0 : 1;
+               
             end
         end
         @(posedge clk);
@@ -567,6 +675,7 @@ module ArrayConvOneRowCtrl #(parameter
             act_feed_done[row_idx][c] = 1;
         end
     endtask
+    /*
     // always block to start this module
     always@(posedge array_conv_one_row_start) begin
         $display("@%d, come to array_conv_one_row_start trigged always. But it should be deprecated. Use the task!", $time);
@@ -576,6 +685,7 @@ module ArrayConvOneRowCtrl #(parameter
         @(posedge clk);
         array_conv_one_row_done = 0;
     end
+    */
     /******** End of Instance of a general array scheduler**/
 
 
@@ -637,10 +747,13 @@ module ArrayConvOneRowCtrl #(parameter
     /**************Init some states**********/
     initial begin
         pe_ctrl_ACCFIFO_read_to_outbuffer = 0;
+        array_next_cycle_data_to_outbuff_valid = 0;
         pe_ctrl_AFIFO_write = 0;
         waiting_for_each_row_finish = 0;
         clr_pe_scheduler_done = 0;
-        array_conv_one_row_done = 0;
+        pe_ctrl_last_row_shadow_AFIFO_write = 0;
+        pe_data_last_row_shadow_AFIFO_data_in = 0;
+        //rray_conv_one_row_done = 0;
         pe_ctrl_out_to_right_pe_en = 0;
         pe_ctrl_out_mux_sel_PE = 0;
         infm2d_height = -1;
@@ -654,6 +767,6 @@ module ArrayConvOneRowCtrl #(parameter
             end
         end
         PAMAC_MDecomp = 0;
-        PAMAC_AWDecomp = 0;
+        PAMAC_AWDecomp = 1;
     end
 endmodule

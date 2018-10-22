@@ -304,7 +304,7 @@ initial begin
         if(stride_per_layer[current_layer] == 2) begin
             continue;
         end
-        if(is_depthwise == 1) begin
+        if(is_depthwise[current_layer] == 1) begin
             dw_conv_one_layer(
                 current_layer, 
                 in_ch_per_layer[current_layer],

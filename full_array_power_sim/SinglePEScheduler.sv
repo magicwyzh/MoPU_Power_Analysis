@@ -76,39 +76,66 @@ always@(posedge start) begin
     ACCFIFO_read = 0;
     #1;
     while(!finish_condition) begin
-        if(!AFIFO_empty) begin
-			AFIFO_read = 1;
-            @(posedge clk);
-			ACCFIFO_write = 0;
-            AFIFO_read = 0;
-            #1;
-            fork
-                FoFIR_update_one_time_task(
-					afifo_out[activation_width-1: 0],
-					afifo_out[compressed_act_width-1],
-					WRegs_packed,
-					n_ap,
-					quantized_bits,
-					kernel_size,
-					PAMAC_MDecomp,
-					PAMAC_AWDecomp
-				);
-				begin
-					// the first kernel_size-1 outputs are not required..
-					if(!(input_count < kernel_size-1)) begin
-						// read ACCFIFO when valid_result_trig = 1, then write accumulated result to ACCFIFO
-						// the ACCFIFO_write should be set to zero one cycle after this task call.
-						ACCFIFO_ctrl_process_when_computing();								
+		if(WRegs_packed!=0) begin:WRegs_Packed_Not_Zero
+			if(!AFIFO_empty) begin
+				AFIFO_read = 1;
+				@(posedge clk);
+				ACCFIFO_write = 0;
+				AFIFO_read = 0;
+				#1;
+				fork
+					FoFIR_update_one_time_task(
+						afifo_out[activation_width-1: 0],
+						afifo_out[compressed_act_width-1],
+						WRegs_packed,
+						n_ap,
+						quantized_bits,
+						kernel_size,
+						PAMAC_MDecomp,
+						PAMAC_AWDecomp
+					);
+					ACCFIFO_ctrl_process_when_computing();								
+				join
+			end
+			else begin
+				@(posedge clk); 
+				ACCFIFO_write = 0;
+			end
+		end:WRegs_Packed_Not_Zero
+		else begin:WRegs_Packed_Is_Zero
+			// when the WRegs are all zero, just load all data from afifo out so that 
+			// they may be sent to the upper PE if required.
+			// but if first_acc_flag is true, then the accfifo should be fed with all zero
+			if(!AFIFO_empty) begin
+				AFIFO_read = 1;
+				@(posedge clk);
+				AFIFO_read = 0;
+				ACCFIFO_write = 0;
+				if(first_acc_flag) begin
+					feed_zero_to_accfifo = 1;
+					#1; //to get the actual value of afifo_out
+					if(afifo_out[compressed_act_width-1] == 0) begin
+						//one data, not continuous zero
+						ACCFIFO_write = 1;
+						@(posedge clk);
+						ACCFIFO_write = 0;
 					end
+					else begin
+						for(int i=0; i < afifo_out[activation_width-1: 0];i++) begin
+							ACCFIFO_write = 1;
+							@(posedge clk);
+						end
+						ACCFIFO_write = 0;
+					end
+					feed_zero_to_accfifo = 0;
 				end
-			join
-			input_count += 1;
-        end
-        else begin
-            @(posedge clk); 
-			ACCFIFO_write = 0;
-        end
-        #1; // delay for obtaining the value of finish_condition
+			end
+			else begin
+				@(posedge clk);
+				ACCFIFO_write = 0;
+			end
+		end:WRegs_Packed_Is_Zero
+		#1; // delay for obtaining the value of finish_condition
 	end
 	@(posedge clk);
     ACCFIFO_write = 0;

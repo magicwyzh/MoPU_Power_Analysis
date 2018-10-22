@@ -68,8 +68,6 @@ module array_dw_conv_one_row_ctrl_4x4_tb #(parameter
 
     /**** Transactions with global scheduler *******/
         logic clk;
-        logic array_conv_one_row_start;
-        logic array_conv_one_row_done;
         int kernel_size; 
         int quantized_bits; 
         logic first_acc_flag;
@@ -121,8 +119,6 @@ module array_dw_conv_one_row_ctrl_4x4_tb #(parameter
         .WBPRs                        (WBPRs                        ),
         .WETCs                        (WETCs                        ),
         .clk                          (clk                          ),
-        .array_conv_one_row_start     (array_conv_one_row_start     ),
-        .array_conv_one_row_done      (array_conv_one_row_done      ),
         .kernel_size                  (kernel_size                  ),
         .quantized_bits               (quantized_bits               ),
         .first_acc_flag               (first_acc_flag               ),
@@ -185,7 +181,7 @@ module array_dw_conv_one_row_ctrl_4x4_tb #(parameter
     /**Init something**/
     initial begin
         pe_ctrl_which_accfifo_for_compute = 0;
-        array_conv_one_row_start = 0;
+        //array_conv_one_row_start = 0;
         kernel_size = 3;
         quantized_bits = 8;
         first_acc_flag = 0;
@@ -236,7 +232,7 @@ module array_dw_conv_one_row_ctrl_4x4_tb #(parameter
     // so that unnecessary inner Array data transfer is avoided and ensure the compute sequence 
     // is correct.
     task dw_conv(
-        input infm2d_start_row
+        input int infm2d_start_row
     );
         load_WRegs(0);
         if(WETCs[0] == 0) begin

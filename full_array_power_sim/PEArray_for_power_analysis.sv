@@ -70,7 +70,7 @@ module PEArray_for_power_analysis #(parameter
             output [num_pe_row-1: 0][output_width-1:0] out_fr_rightest_PE_odd_col,     // %2 = 1
             output [total_num_pe-1: 0] pe_ctrl_ACCFIFO_empty,
         /****Configuration ports*************************/
-            input [4-1: 0] n_ap,
+            //input [4-1: 0] n_ap,
 
             input clk,
             input rst_n
@@ -125,7 +125,7 @@ module PEArray_for_power_analysis #(parameter
             u_PE_for_power_analysis(
             	.compressed_act_in    (pe_data_compressed_act_in[gen_r]    ),
                 .out_fr_left_PE       (out_to_single_pe[gen_r][gen_c]        ),
-                .n_ap                 (n_ap                 ),
+                .n_ap                 (pe_ctrl_n_ap[gen_c+gen_r*num_pe_col]                 ),
                 .PAMAC_BPEB_sel       (pe_ctrl_PAMAC_BPEB_sel[gen_c+gen_r*num_pe_col]       ),
                 .PAMAC_DFF_en         (pe_ctrl_PAMAC_DFF_en[gen_c+gen_r*num_pe_col]         ),
                 .PAMAC_first_cycle    (pe_ctrl_PAMAC_first_cycle[gen_c+gen_r*num_pe_col]    ),
