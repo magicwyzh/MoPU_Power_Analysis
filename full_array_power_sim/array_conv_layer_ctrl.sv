@@ -312,12 +312,12 @@ module ArrayConvLayerCtrl#(parameter
                 // compute control
                 first_acc_flag = kernel_row == 0 ? 1 : 0;
                 // computing start!
-                
+                is_normal_convolving = 1;
                 ConvOneRowCtrl.array_normal_conv_one_row_task();
-                
+                is_normal_convolving = 0;
             end
         end
-        is_normal_convolving = 0;
+        
     endtask
 
     function string generate_act_dump_file_name(

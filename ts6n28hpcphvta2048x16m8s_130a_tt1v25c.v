@@ -120,7 +120,8 @@ parameter MES_ALL = "ON";
 `endif
 
 `ifdef TSMC_INITIALIZE_MEM
-  parameter cdeFileInit  = "TS6N28HPCPHVTA2048X16M8S_initial.cde";
+  //parameter cdeFileInit  = "TS6N28HPCPHVTA2048X16M8S_initial.cde";
+  parameter cdeFileInit = "all_zero_2k.dat";
 `endif
 `ifdef TSMC_INITIALIZE_FAULT
    parameter cdeFileFault = "TS6N28HPCPHVTA2048X16M8S_fault.cde";

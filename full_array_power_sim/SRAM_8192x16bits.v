@@ -36,7 +36,9 @@ endgenerate
 reg [2-1: 0] delayed_rAddr_high_bit;
 
 always@(posedge clk) begin
-	delayed_rAddr_high_bit <= rAddr[L_addr-1 -: 2];
+	if(!rEn) begin
+		delayed_rAddr_high_bit <= rAddr[L_addr-1 -: 2];
+	end
 end
 
 

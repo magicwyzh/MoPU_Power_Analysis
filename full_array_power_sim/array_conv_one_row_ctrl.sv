@@ -80,6 +80,7 @@ module ArrayConvOneRowCtrl #(parameter
 
     /****** Utils signals for debugging********************/
     logic waiting_for_each_row_finish;
+    logic hungry_for_act[num_pe_row-1: 0][num_pe_col-1: 0];
     /******* End of utils signals for debugging*************/
 
     /******** Variables saving act and ctrl info************/
@@ -412,6 +413,7 @@ module ArrayConvOneRowCtrl #(parameter
                     .WRegs_packed(WRegs[gen_j]),
                     .WETCs_packed(WETCs[gen_j]),
                     .WBPRs_packed(WBPRs[gen_j]),
+                    .hungry_for_act(hungry_for_act[gen_i][gen_j]), 
                     .* // n_ap, quantized_bits, kernel_size, clr_pe_scheduler_done
                 );
             end

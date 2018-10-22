@@ -59,7 +59,7 @@ module SinglePEScheduler #(parameter
             output logic this_pe_done,
             input first_acc_flag, 
             input clr_pe_scheduler_done,
-			
+			output logic hungry_for_act,
         /**** end of ports with array scheduler****/
         
         /**** Misc ports***************/
@@ -69,15 +69,18 @@ module SinglePEScheduler #(parameter
 logic finish_condition;
 assign finish_condition = AFIFO_empty && act_feed_done;
 int input_count;
+
 always@(posedge start) begin
 	input_count = 0;
     ACCFIFO_write = 0;
     AFIFO_read = 0;
     ACCFIFO_read = 0;
+	hungry_for_act = 0;
     #1;
     while(!finish_condition) begin
 		if(WRegs_packed!=0) begin:WRegs_Packed_Not_Zero
 			if(!AFIFO_empty) begin
+				hungry_for_act = 0;
 				AFIFO_read = 1;
 				@(posedge clk);
 				ACCFIFO_write = 0;
@@ -98,6 +101,7 @@ always@(posedge start) begin
 				join
 			end
 			else begin
+				hungry_for_act = 1;
 				@(posedge clk); 
 				ACCFIFO_write = 0;
 			end
@@ -107,6 +111,7 @@ always@(posedge start) begin
 			// they may be sent to the upper PE if required.
 			// but if first_acc_flag is true, then the accfifo should be fed with all zero
 			if(!AFIFO_empty) begin
+				hungry_for_act = 0;
 				AFIFO_read = 1;
 				@(posedge clk);
 				AFIFO_read = 0;
@@ -131,6 +136,7 @@ always@(posedge start) begin
 				end
 			end
 			else begin
+				hungry_for_act = 1;
 				@(posedge clk);
 				ACCFIFO_write = 0;
 			end
@@ -138,6 +144,7 @@ always@(posedge start) begin
 		#1; // delay for obtaining the value of finish_condition
 	end
 	@(posedge clk);
+	hungry_for_act = 0;
     ACCFIFO_write = 0;
     AFIFO_read = 0;
     ACCFIFO_read = 0;
@@ -579,5 +586,6 @@ task automatic ACCFIFO_pre_read_when_computing();
         {current_tap, DRegs_en, DRegs_clr, DRegs_in_sel, index_update_en, out_mux_sel, out_reg_en} = 0;
         {AFIFO_read, ACCFIFO_read,ACCFIFO_write, add_zero, feed_zero_to_accfifo, accfifo_head_to_tail} = 0;
         this_pe_done = 0;
+		hungry_for_act = 0;
     end
 endmodule
