@@ -69,7 +69,19 @@ module SinglePEScheduler #(parameter
 logic finish_condition;
 assign finish_condition = AFIFO_empty && act_feed_done;
 int input_count;
-
+logic never_start;
+initial begin
+	never_start = 1;
+end
+// use this one to make sure that the first time a singlePEScheduler is called will 
+// not let the input to the adder in the PE be x from the ACCFIFO.
+// Only after run one time with first_acc_flag, will the first_acc_flag_processed be the same
+// as the input one.
+// This is to tackle the situation that the first conv one row meets zero WRegs
+// and the PE will not start and then the next time PE will load out x from the ACCFIFO.
+logic first_acc_flag_processed;
+//assign first_acc_flag_processed = never_start == 1? 1 : first_acc_flag;
+assign first_acc_flag_processed = first_acc_flag;
 always@(posedge start) begin
 	input_count = 0;
     ACCFIFO_write = 0;
@@ -116,7 +128,7 @@ always@(posedge start) begin
 				@(posedge clk);
 				AFIFO_read = 0;
 				ACCFIFO_write = 0;
-				if(first_acc_flag) begin
+				if(first_acc_flag_processed) begin
 					feed_zero_to_accfifo = 1;
 					#1; //to get the actual value of afifo_out
 					if(afifo_out[compressed_act_width-1] == 0) begin
@@ -149,6 +161,7 @@ always@(posedge start) begin
     AFIFO_read = 0;
     ACCFIFO_read = 0;
     this_pe_done = 1;
+	never_start = 0;
 end
 /** Clear it**/
 always@(posedge clr_pe_scheduler_done) begin
@@ -381,12 +394,12 @@ task automatic ACCFIFO_ctrl_process_when_computing();
 			@(posedge clk);
 			#1;
 		end
-		ACCFIFO_read = first_acc_flag ? 0:1;
+		ACCFIFO_read = first_acc_flag_processed ? 0:1;
 		@(posedge clk);
 		// put head_to_tail/feed_zero_to_accfifo here to ensure correct data goto the accfifo
 		accfifo_head_to_tail = 0;
 		feed_zero_to_accfifo = 0;
-		add_zero = first_acc_flag ? 1:0;
+		add_zero = first_acc_flag_processed ? 1:0;
 		ACCFIFO_read = 0;
 		ACCFIFO_write = 1;
 		// the ACCFIFO_write should be 0 in the next cycle, but put this part in the caller of this task
@@ -398,12 +411,12 @@ task automatic ACCFIFO_ctrl_process_when_computing();
 		for(int tt = 0; tt<temp; tt++) begin
 			#1;
 			if(valid_result_trig) begin
-				ACCFIFO_read = first_acc_flag ? 0:1;
-				add_zero = first_acc_flag ? 1: 0;
+				ACCFIFO_read = first_acc_flag_processed ? 0:1;
+				add_zero = first_acc_flag_processed ? 1: 0;
 			end
 			else begin
-				ACCFIFO_read = first_acc_flag ? 0 : 1;
-				add_zero = first_acc_flag ? 1:0;
+				ACCFIFO_read = first_acc_flag_processed ? 0 : 1;
+				add_zero = first_acc_flag_processed ? 1:0;
 				$display("In Module %m, @%t, the valid trig should be 1 but not meet", $time);
 				@(posedge clk);
 				$stop;
@@ -419,7 +432,7 @@ task automatic ACCFIFO_ctrl_process_when_computing();
 			if(diff <= 0) return;//error state
 			// need to put head to tail
 			for(int m = 0; m < diff; m++) begin
-				if(!first_acc_flag) begin
+				if(!first_acc_flag_processed) begin
 					ACCFIFO_read = 1;
 				end
 				else begin
@@ -427,7 +440,7 @@ task automatic ACCFIFO_ctrl_process_when_computing();
 				end
 				@(posedge clk);
 				ACCFIFO_write = 1;
-				if(!first_acc_flag) begin
+				if(!first_acc_flag_processed) begin
 					accfifo_head_to_tail = 1;
                     feed_zero_to_accfifo = 0;
 				end
@@ -452,7 +465,7 @@ task automatic ACCFIFO_pre_read_when_computing();
         //ACCFIFO_read = 1;//because the first time need not to read
         if(afifo_out[compressed_act_width-1] == 0) begin
             //not a zero act
-            ACCFIFO_read = first_acc_flag ? 0:1;
+            ACCFIFO_read = first_acc_flag_processed ? 0:1;
             @(posedge clk);
             ACCFIFO_read = 0;
         end
@@ -464,18 +477,18 @@ task automatic ACCFIFO_pre_read_when_computing();
             for(int tt = 0; tt<temp;tt++) begin//
                 #1;
                 if(valid_result_trig == 1) begin
-                    ACCFIFO_read = first_acc_flag ? 0 : 1;
-                    add_zero = first_acc_flag ? 1:0;
+                    ACCFIFO_read = first_acc_flag_processed ? 0 : 1;
+                    add_zero = first_acc_flag_processed ? 1:0;
                 end
                 else begin
-                    ACCFIFO_read = first_acc_flag ? 0 : 1;
-                    add_zero = first_acc_flag ? 1:0;
+                    ACCFIFO_read = first_acc_flag_processed ? 0 : 1;
+                    add_zero = first_acc_flag_processed ? 1:0;
                     $display("In Module %m, @%t, the valid trig should be 1 but not meet", $time);
                 end
                 @(posedge clk);
                 ACCFIFO_write = 1;
             end
-            if(zero_more_than_kernel_size && !first_acc_flag) begin
+            if(zero_more_than_kernel_size && !first_acc_flag_processed) begin
                 // need to put head to tail
                 ACCFIFO_read = 1;
             end
@@ -488,7 +501,7 @@ task automatic ACCFIFO_pre_read_when_computing();
             if(zero_more_than_kernel_size) begin
                 diff = afifo_out[activation_width-1-1: 0] - kernel_size;
                 for(int tt = 0; tt < diff; tt++) begin
-                    if(first_acc_flag) begin
+                    if(first_acc_flag_processed) begin
                         feed_zero_to_accfifo = 1;
                         accfifo_head_to_tail = 0;
                         ACCFIFO_write = 1;

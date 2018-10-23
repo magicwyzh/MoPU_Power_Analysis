@@ -78,7 +78,7 @@ module ArrayConvLayerCtrl#(parameter
     );
     int kernel_size_to_row_ctrl;
     int quantized_bits_to_row_ctrl;
-    logic first_acc_flag;
+    logic [total_num_pe-1: 0] first_acc_flag;
     logic [4-1: 0] n_ap;
     /****Instance of ConvOneRowCtrl*****/
     ArrayConvOneRowCtrl #(
@@ -143,6 +143,11 @@ module ArrayConvLayerCtrl#(parameter
     logic is_normal_convolving;
 
     /**** Utils functions and tasks*******/
+    task clear_WRegs();
+        WRegs = 0;
+        WBPRs = 0;
+        WETCs = 0;
+    endtask
     // this task load weights from file and also set the 'kernel_size_to_row_ctrl'
     task load_weights_this_layer_from_file(
         input string file_path,
@@ -257,6 +262,8 @@ module ArrayConvLayerCtrl#(parameter
         string file_name;
         int infm_col_tile_idx;
         int infm_row_idx;
+        logic [total_num_pe-1: 0] first_acc_flag_score_board;
+        first_acc_flag_score_board = {total_num_pe{1'b1}};
         is_normal_convolving = 1;
         infm_col_tile_idx = tiled_col_start / ACCFIFO_size;
         for(int cin_inner_group_idx = 0; cin_inner_group_idx < end_of_cin_idx_in_group; cin_inner_group_idx++) begin
@@ -288,7 +295,7 @@ module ArrayConvLayerCtrl#(parameter
                     end
                 end
                 else begin
-                    // only feed the upper half
+                    // feed the upper half together with the bottom half by same data
                     for(int pe_row_idx = 0; pe_row_idx < (num_pe_row / 2); pe_row_idx++) begin
                         infm_row_idx = tiled_row_start + pe_row_idx+kernel_row;
                         if(infm_row_idx < (fm_size - kernel_size_to_row_ctrl + 1)) begin
@@ -310,7 +317,19 @@ module ArrayConvLayerCtrl#(parameter
                 end
                 @(posedge clk); // why wait? because if not wait, the normal_conv_one_row_task will get wrong wregs...why??
                 // compute control
-                first_acc_flag = kernel_row == 0 ? 1 : 0;
+                //first_acc_flag = (kernel_row == 0 && cin_inner_group_idx == 0)? {total_num_pe{1'b1}} : 0;
+                // set the first acc flag = 1 if never compute.
+                for(int j = 0; j < num_pe_col; j++) begin
+                    for(int i = 0; i < num_pe_row; i++) begin
+                        if(first_acc_flag_score_board[i * num_pe_col + j] == 1 && WETCs[j] != 0) begin
+                            first_acc_flag[i*num_pe_col + j] = 1;
+                            first_acc_flag_score_board[i*num_pe_col + j] = 0;
+                        end
+                        else begin
+                            first_acc_flag[i*num_pe_col + j] = 0;
+                        end
+                    end
+                end
                 // computing start!
                 is_normal_convolving = 1;
                 ConvOneRowCtrl.array_normal_conv_one_row_task();
@@ -438,6 +457,7 @@ module ArrayConvLayerCtrl#(parameter
         int num_convolved_rows;
         logic is_first_conv_stage;
         int out_ch_idx_step;
+        clear_WRegs();
         pe_ctrl_which_accfifo_for_compute = 0;
         pe_ctrl_which_afifo_for_compute = 0;
         if(stride!=1) begin
@@ -522,6 +542,7 @@ module ArrayConvLayerCtrl#(parameter
         int num_convolved_rows;
         int cout_this_time_range;
         int cout_start_idx_onetime_step;
+        clear_WRegs();
         is_first_conv_stage = 1;
         if(stride!= 1) begin
             $display("Stride!=1 is not supported now!");
@@ -557,10 +578,10 @@ module ArrayConvLayerCtrl#(parameter
                             cout_this_time_range = max_outch_per_time;
                         end
                         if((fm_size - kernel_size_to_row_ctrl + 1) > num_pe_row/2) begin 
-                            cout_start_idx_onetime_step = num_pe_row;
+                            cout_start_idx_onetime_step = num_pe_col;
                         end
                         else begin
-                            cout_start_idx_onetime_step = 2 * num_pe_row;
+                            cout_start_idx_onetime_step = 2 * num_pe_col;
                         end
                         for(int cout_start_idx_onetime = 0; cout_start_idx_onetime < cout_this_time_range; cout_start_idx_onetime+=cout_start_idx_onetime_step) begin
                             first_cout = cout_start_idx_onetime;

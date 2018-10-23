@@ -210,8 +210,8 @@ module ArrayConvLayerCtrl_tb#(parameter
         logic [64-1: 0] start_time;
         logic [64-1: 0] end_time;
         int cycle_this_layer;
-        start_layer = 1;
-        end_layer = 52;
+        start_layer = 2;
+        end_layer = 3;
         act_dir_path = "C:/Users/jy/Desktop/mopu-testbench/testdata/mobilenet";
         weight_file_path = {act_dir_path, "/weights"};
         rst_n = 1;

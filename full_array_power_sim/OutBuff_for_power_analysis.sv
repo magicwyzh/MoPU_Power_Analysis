@@ -1,6 +1,6 @@
 module OutBuff_for_power_analysis #(
     num_pe_row = 16,
-    num_pe_col = 16,
+    //num_pe_col = 16,
     out_fr_array_width = 24,
     data_width_to_buff = 16,
     nb_data = 8192,

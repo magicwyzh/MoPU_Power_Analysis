@@ -71,7 +71,7 @@ module ArrayConvOneRowCtrl #(parameter
             input clk,
             input int kernel_size, 
             input int quantized_bits, 
-            input first_acc_flag,
+            input [total_num_pe-1: 0] first_acc_flag,
             input [4-1:0] n_ap,
             output logic array_next_cycle_data_to_outbuff_valid
         /**** End of Transactions with global scheduler*****/
@@ -413,8 +413,9 @@ module ArrayConvOneRowCtrl #(parameter
                     .WRegs_packed(WRegs[gen_j]),
                     .WETCs_packed(WETCs[gen_j]),
                     .WBPRs_packed(WBPRs[gen_j]),
-                    .hungry_for_act(hungry_for_act[gen_i][gen_j]), 
-                    .* // n_ap, quantized_bits, kernel_size, clr_pe_scheduler_done
+                    .hungry_for_act(hungry_for_act[gen_i][gen_j]),
+                    .first_acc_flag(first_acc_flag[gen_j+gen_i*num_pe_col]),
+                    .* // n_ap, first_acc_flag, quantized_bits, kernel_size, clr_pe_scheduler_done
                 );
             end
         end
@@ -621,7 +622,6 @@ module ArrayConvOneRowCtrl #(parameter
             // this column don't need to compute
             for(int r = 0; r < num_pe_row; r++) begin
                 single_pe_scheduler_start[r][c] = WETCs[c] == 0 ? 0 : 1;
-               
             end
         end
         @(posedge clk);
