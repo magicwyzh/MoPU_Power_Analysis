@@ -66,6 +66,8 @@
 //*        Library Version  : 130a */
 //*        Generated Time   : 2018/01/05, 11:19:17 */
 //*************************************************************************** ** */
+`define TSMC_INITIALIZE_MEM
+`define UNIT_DELAY
 `resetall
 `celldefine
 
