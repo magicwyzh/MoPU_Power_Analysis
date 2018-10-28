@@ -272,7 +272,7 @@ module ArrayConvLayerCtrl#(parameter
                 normal_conv_load_WRegs(
                     cout_start_idx + first_cout,
                     cout_start_idx + last_cout,
-                    cin_inner_group_idx,
+                    cin_inner_group_idx+cin_start_idx,
                     kernel_row,
                     num_inch
                 );
