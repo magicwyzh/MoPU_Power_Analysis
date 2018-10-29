@@ -394,7 +394,7 @@ module ArrayConvLayerCtrl#(parameter
         end
         @(posedge clk); // make sure the wregs are new
         pe_ctrl_compute_AFIFO_read_delay_enable = {total_num_pe{1'b1}};
-        first_acc_flag = 1;
+        first_acc_flag = {total_num_pe{1'b1}};
         fork
             ConvOneRowCtrl.load_infm2d_to_array_accord_workload(infm2d_start_row);
             ConvOneRowCtrl.array_dw_conv_one_row_task(1);

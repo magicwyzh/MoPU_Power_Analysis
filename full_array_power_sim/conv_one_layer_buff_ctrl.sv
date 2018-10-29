@@ -28,12 +28,6 @@ module conv_one_layer_buff_ctrl#(
 	width_current_tap = nb_taps > 8 ? 4 : 3,
     output_width = tap_width
 )(
-    // select signals to choose the data source
-    // 0 is from dummy, else from actbuff bank equal or below current PE row
-    output logic [2-1: 0] compressed_act_in_sel, 
-    // 0 is from dummy, else from wbuff
-    output logic last_row_shadow_afifo_in_sel,
-    output logic wreg_in_sel,
     /********ActBuff Ports**************/
 	output logic [num_pe_row-1: 0][compressed_act_width-1: 0] ActBuff_data_in,
 	output logic [num_pe_row-1: 0] ActBuff_wEn_AH, 
@@ -155,9 +149,6 @@ module conv_one_layer_buff_ctrl#(
             $display("@%t, load_infm2d_from_file:Error Open file:%s", $time, file_full_path);
             $stop;
         end
-        else begin
-            $display("@%t, DWConv load_infm2d_from_file: Open file:%s", $time, file_full_path);
-        end
         while(!$feof(fp)) begin
             n = $fscanf(fp, "%x\n", r);
             infm2d_buffer[pix] = r;
@@ -178,7 +169,7 @@ module conv_one_layer_buff_ctrl#(
     	int per_pe_output_col;
 	    int res;
         int out_size[num_pe_col];
-        //$display("dw_conv_pe_workload_gen, inp_col_size = %d, kernel_size = %d, stride = %d", inp_col_size, kernel_size, stride);
+
         outp_col_size =  ((inp_col_size - kernel_size) /stride ) + 1;
 	    per_pe_output_col = outp_col_size / num_pe_col;
         if(per_pe_output_col > 0) begin
@@ -187,23 +178,18 @@ module conv_one_layer_buff_ctrl#(
         else begin
             res = outp_col_size;
         end
-        //$display("outp_col_size = %d, num_pe_col = %d, per_pe_out_col = %d, div_result=%d, res = %d", outp_col_size, num_pe_col, per_pe_output_col,outp_col_size / num_pe_col, res);
         for(int i = 0; i<num_pe_col; i++) begin
             out_size[i] = per_pe_output_col;
             if(i < res) begin
                 out_size[i] += 1;
             end
-            //$display("out_size[%d] = %d", i, out_size[i]);
             pe_workload_out_size[i] = out_size[i];
-            //$display("out_size[%d] = %d", i, out_size[i]);
         end
         pe_workload_start_col[0] = 0;
         pe_workload_end_col[0] = kernel_size+(out_size[0]-1)*stride -1;
-        //$display("start_col[%d] = %d, end_col[%d] = %d", 0, pe_workload_start_col[0], 0, pe_workload_end_col[0]);
         for(int i = 1; i < num_pe_col; i++) begin
             pe_workload_start_col[i] = pe_workload_end_col[i-1] - (stride==2?0:1);
             pe_workload_end_col[i] = pe_workload_start_col[i] + kernel_size + (out_size[i]-1)*stride-1;
-            //$display("start_col[%d] = %d, end_col[%d] = %d", i, pe_workload_start_col[i], i, pe_workload_end_col[i]);
         end
     endtask
     /****** WBuff R/W tasks*********/
@@ -656,7 +642,6 @@ module conv_one_layer_buff_ctrl#(
             out_ch_idx_step = 1;
         end
         for(int out_ch_idx = 0; out_ch_idx < nb_ch; out_ch_idx+=out_ch_idx_step) begin
-            $display("@%t, start the %d-th output channel", $time, out_ch_idx);
             dw_conv_load_infm2d_fr_file(infm2d_file_path, out_ch_idx, fm_size);
             WBuff_Save_In_DwConv_Weights(
                     kernel_size,
@@ -681,7 +666,7 @@ module conv_one_layer_buff_ctrl#(
     int tiled_col_start;
     int tiled_row_start;
     int cin_start_idx;
-    task normal_conv_one_layer(
+    task normal_conv_one_layer_BuffCtrlGen(
         // the infm_file_path is just a path to the file, without the filename
         // the file name should be "act_dump_ch<inch_idx>_row<row_idx>_tile_idx<tile_idx>.dat"
         input string infm_file_path,
@@ -715,9 +700,11 @@ module conv_one_layer_buff_ctrl#(
             for(tiled_col_start = 0; tiled_col_start<fm_size; tiled_col_start += tiled_col_size * stride)begin
                 for(tiled_row_start = 0; tiled_row_start<fm_size; tiled_row_start+=num_pe_row*stride) begin
                     for(cin_start_idx = 0; cin_start_idx < num_inch; cin_start_idx+=inch_group_size) begin
+                        /*
                         $display("@%t, (cout_start_idx, tiled_col_start, tiled_row_start, cin_start_idx) = (%d, %d,%d,%d)",
                                 $time, cout_start_idx, tiled_col_start, tiled_row_start, cin_start_idx
                             );
+                        */
                         end_cout_idx = min(cout_start_idx+max_outch_per_time, num_outch);
                         end_cin_idx = min(cin_start_idx+inch_group_size, num_inch);
                         // in python model, should pick up a weight buffer:
@@ -779,9 +766,6 @@ module conv_one_layer_buff_ctrl#(
 
     /******Signal Initializations***********/
     initial begin
-        compressed_act_in_sel = 0;
-        last_row_shadow_afifo_in_sel = 0;
-        wreg_in_sel = 0;
         ActBuff_data_in = 0;
         ActBuff_wEn_AH = 0;
         ActBuff_rEn_AH = 0;

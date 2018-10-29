@@ -108,7 +108,6 @@ module FPAP_for_power_analysis #(
     /**** Ports for systolic chain*******************/
         output [total_num_pe-1: 0] pe_ctrl_ACCFIFO_empty,
     /****** Configuration Ports********/
-    input [4-1: 0] n_ap,
 
     input clk, rst_n
 );
@@ -173,7 +172,7 @@ WBuff_for_power_analysis #(
     .buffer_wEn_AH       (WBuff_wEn_AH       ),
     .buffer_rEn_AH       (WBuff_rEn_AH       ),
     .clear_all_wregs     (WBuff_clear_all_wregs     ),
-    .n_ap                (n_ap                )
+    .n_ap                ( 4'b0                )
 );
 
 OutBuff_for_power_analysis #(

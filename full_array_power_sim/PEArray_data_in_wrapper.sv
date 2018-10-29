@@ -81,7 +81,7 @@ generate
     /**** MUX for last PE Row Data In and WRegs/BPRs/ETCs******/
     for(gen_c = 0; gen_c < num_pe_col; gen_c++) begin
         assign pe_data_last_row_shadow_AFIFO_data_in[gen_c] = last_row_shadow_afifo_in_sel == 0 ? 
-                    last_row_shadow_AFIFO_data_in_fr_dummy_ctrl[num_pe_col] : last_row_shadow_AFIFO_data_in_fr_wbuff[num_pe_col];
+                last_row_shadow_AFIFO_data_in_fr_dummy_ctrl[gen_c] : last_row_shadow_AFIFO_data_in_fr_wbuff[gen_c];
         assign WRegs[gen_c] = wreg_in_sel == 0 ? WRegs_fr_dummy_ctrl[gen_c] : WRegs_fr_wbuff[gen_c];
         assign WETCs[gen_c] = wreg_in_sel == 0 ? WETCs_fr_dummy_ctrl[gen_c] : WETCs_fr_wbuff[gen_c];
         assign WBPRs[gen_c] = wreg_in_sel == 0 ? WBPRs_fr_dummy_ctrl[gen_c] : WBPRs_fr_wbuff[gen_c];

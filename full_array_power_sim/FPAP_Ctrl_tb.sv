@@ -1,5 +1,5 @@
 `timescale 1ns/1ns
-module FPAP_conv_layer_buff_ctrl_tb #(
+module FPAP_Ctrl_tb #(
     num_pe_row = 16,
     num_pe_col = 16,
     total_num_pe = num_pe_row * num_pe_col,
@@ -113,7 +113,6 @@ module FPAP_conv_layer_buff_ctrl_tb #(
     /**** Ports for systolic chain*******************/
         logic [total_num_pe-1: 0] pe_ctrl_ACCFIFO_empty;
     /****** Configuration Ports********/
-    logic [4-1: 0] n_ap;
     
 
 
@@ -188,33 +187,78 @@ module FPAP_conv_layer_buff_ctrl_tb #(
         .pe_ctrl_AFIFO_empty                         (pe_ctrl_AFIFO_empty                         ),
         .pe_data_afifo_out                           (pe_data_afifo_out                           ),
         .pe_ctrl_ACCFIFO_empty                       (pe_ctrl_ACCFIFO_empty                       ),
-        .n_ap                                        (n_ap                                        ),
         .clk                                         (clk                                         ),
         .rst_n                                       (rst_n                                       )
     );
-    conv_one_layer_buff_ctrl #(
-            .num_pe_row(num_pe_row),
-            .num_pe_col(num_pe_col)
-        ) DUT(
-    	.compressed_act_in_sel        (compressed_act_in_sel        ),
-        .last_row_shadow_afifo_in_sel (last_row_shadow_afifo_in_sel ),
-        .wreg_in_sel                  (wreg_in_sel                  ),
-        .ActBuff_data_in              (ActBuff_data_in              ),
-        .ActBuff_wEn_AH               (ActBuff_wEn_AH               ),
-        .ActBuff_rEn_AH               (ActBuff_rEn_AH               ),
-        .ActBuff_wAddr                (ActBuff_wAddr                ),
-        .ActBuff_rAddr                (ActBuff_rAddr                ),
-        .WBuff_weight_load_en         (WBuff_weight_load_en         ),
-        .WBuff_wAddr                  (WBuff_wAddr                  ),
-        .WBuff_rAddr                  (WBuff_rAddr                  ),
-        .WBuff_data_in                (WBuff_data_in                ),
-        .WBuff_wEn_AH                 (WBuff_wEn_AH                 ),
-        .WBuff_rEn_AH                 (WBuff_rEn_AH                 ),
-        .WBuff_clear_all_wregs        (WBuff_clear_all_wregs        ),
-        .clk                          (clk                          )
+
+    FPAP_Ctrl DUT(
+    	.compressed_act_in_fr_dummy_ctrl             (compressed_act_in_fr_dummy_ctrl             ),
+        .last_row_shadow_AFIFO_data_in_fr_dummy_ctrl (last_row_shadow_AFIFO_data_in_fr_dummy_ctrl ),
+        .WRegs_fr_dummy_ctrl                         (WRegs_fr_dummy_ctrl                         ),
+        .WBPRs_fr_dummy_ctrl                         (WBPRs_fr_dummy_ctrl                         ),
+        .WETCs_fr_dummy_ctrl                         (WETCs_fr_dummy_ctrl                         ),
+        .compressed_act_in_sel                       (compressed_act_in_sel                       ),
+        .last_row_shadow_afifo_in_sel                (last_row_shadow_afifo_in_sel                ),
+        .wreg_in_sel                                 (wreg_in_sel                                 ),
+        .ActBuff_data_in                             (ActBuff_data_in                             ),
+        .ActBuff_wEn_AH                              (ActBuff_wEn_AH                              ),
+        .ActBuff_rEn_AH                              (ActBuff_rEn_AH                              ),
+        .ActBuff_wAddr                               (ActBuff_wAddr                               ),
+        .ActBuff_rAddr                               (ActBuff_rAddr                               ),
+        .WBuff_weight_load_en                        (WBuff_weight_load_en                        ),
+        .WBuff_wAddr                                 (WBuff_wAddr                                 ),
+        .WBuff_rAddr                                 (WBuff_rAddr                                 ),
+        .WBuff_data_in                               (WBuff_data_in                               ),
+        .WBuff_wEn_AH                                (WBuff_wEn_AH                                ),
+        .WBuff_rEn_AH                                (WBuff_rEn_AH                                ),
+        .WBuff_clear_all_wregs                       (WBuff_clear_all_wregs                       ),
+        .OutBuff_data_in_fr_dummy_ctrl_even          (OutBuff_data_in_fr_dummy_ctrl_even          ),
+        .OutBuff_data_in_fr_dummy_ctrl_odd           (OutBuff_data_in_fr_dummy_ctrl_odd           ),
+        .OutBuff_wEn_even_AH                         (OutBuff_wEn_even_AH                         ),
+        .OutBuff_wEn_odd_AH                          (OutBuff_wEn_odd_AH                          ),
+        .OutBuff_rEn_even_AH                         (OutBuff_rEn_even_AH                         ),
+        .OutBuff_rEn_odd_AH                          (OutBuff_rEn_odd_AH                          ),
+        .OutBuff_wAddr_even                          (OutBuff_wAddr_even                          ),
+        .OutBuff_wAddr_odd                           (OutBuff_wAddr_odd                           ),
+        .OutBuff_rAddr_even                          (OutBuff_rAddr_even                          ),
+        .OutBuff_rAddr_odd                           (OutBuff_rAddr_odd                           ),
+        .next_data_fr_array_valid                    (next_data_fr_array_valid                    ),
+        .OutBuff_ctrl_signal_sel                     (OutBuff_ctrl_signal_sel                     ),
+        .pe_ctrl_n_ap                                (pe_ctrl_n_ap                                ),
+        .pe_ctrl_PAMAC_BPEB_sel                      (pe_ctrl_PAMAC_BPEB_sel                      ),
+        .pe_ctrl_PAMAC_DFF_en                        (pe_ctrl_PAMAC_DFF_en                        ),
+        .pe_ctrl_PAMAC_first_cycle                   (pe_ctrl_PAMAC_first_cycle                   ),
+        .pe_ctrl_PAMAC_MDecomp                       (pe_ctrl_PAMAC_MDecomp                       ),
+        .pe_ctrl_PAMAC_AWDecomp                      (pe_ctrl_PAMAC_AWDecomp                      ),
+        .pe_ctrl_current_tap                         (pe_ctrl_current_tap                         ),
+        .pe_ctrl_DRegs_en                            (pe_ctrl_DRegs_en                            ),
+        .pe_ctrl_DRegs_clr                           (pe_ctrl_DRegs_clr                           ),
+        .pe_ctrl_DRegs_in_sel                        (pe_ctrl_DRegs_in_sel                        ),
+        .pe_ctrl_index_update_en                     (pe_ctrl_index_update_en                     ),
+        .pe_ctrl_out_mux_sel                         (pe_ctrl_out_mux_sel                         ),
+        .pe_ctrl_out_reg_en                          (pe_ctrl_out_reg_en                          ),
+        .pe_ctrl_AFIFO_write                         (pe_ctrl_AFIFO_write                         ),
+        .pe_ctrl_AFIFO_read                          (pe_ctrl_AFIFO_read                          ),
+        .pe_ctrl_ACCFIFO_write                       (pe_ctrl_ACCFIFO_write                       ),
+        .pe_ctrl_ACCFIFO_read                        (pe_ctrl_ACCFIFO_read                        ),
+        .pe_ctrl_ACCFIFO_read_to_outbuffer           (pe_ctrl_ACCFIFO_read_to_outbuffer           ),
+        .pe_ctrl_out_mux_sel_PE                      (pe_ctrl_out_mux_sel_PE                      ),
+        .pe_ctrl_out_to_right_pe_en                  (pe_ctrl_out_to_right_pe_en                  ),
+        .pe_ctrl_add_zero                            (pe_ctrl_add_zero                            ),
+        .pe_ctrl_feed_zero_to_accfifo                (pe_ctrl_feed_zero_to_accfifo                ),
+        .pe_ctrl_accfifo_head_to_tail                (pe_ctrl_accfifo_head_to_tail                ),
+        .pe_ctrl_which_accfifo_for_compute           (pe_ctrl_which_accfifo_for_compute           ),
+        .pe_ctrl_which_afifo_for_compute             (pe_ctrl_which_afifo_for_compute             ),
+        .pe_ctrl_compute_AFIFO_read_delay_enable     (pe_ctrl_compute_AFIFO_read_delay_enable     ),
+        .pe_ctrl_last_row_shadow_AFIFO_write         (pe_ctrl_last_row_shadow_AFIFO_write         ),
+        .pe_ctrl_PD0                                 (pe_ctrl_PD0                                 ),
+        .pe_ctrl_AFIFO_full                          (pe_ctrl_AFIFO_full                          ),
+        .pe_ctrl_AFIFO_empty                         (pe_ctrl_AFIFO_empty                         ),
+        .pe_data_afifo_out                           (pe_data_afifo_out                           ),
+        .pe_ctrl_ACCFIFO_empty                       (pe_ctrl_ACCFIFO_empty                       ),
+        .clk                                         (clk                                         )
     );
     
-
     //clock
     initial begin
         clk = 0;
@@ -223,55 +267,6 @@ module FPAP_conv_layer_buff_ctrl_tb #(
         end
     end
 
-    //initialization
-    initial begin
-        //compressed_act_in_sel = 0;
-        //last_row_shadow_afifo_in_sel = 0;
-        //wreg_in_sel = 0;
-        rst_n = 1;
-        OutBuff_ctrl_signal_sel = 0;
-        n_ap = 0;
-        // OutBuff
-        OutBuff_data_in_fr_dummy_ctrl_even = 0;
-        OutBuff_data_in_fr_dummy_ctrl_odd = 0;
-        OutBuff_wEn_even_AH = 0;
-        OutBuff_wEn_odd_AH = 0;
-        OutBuff_rEn_even_AH = 0;
-        OutBuff_rEn_odd_AH = 0;
-        OutBuff_wAddr_even = 0;
-        OutBuff_wAddr_odd = 0;
-        OutBuff_rAddr_even = 0;
-        OutBuff_rAddr_odd = 0;
-        // PE Array
-        pe_ctrl_n_ap = 0;
-        pe_ctrl_PAMAC_BPEB_sel = 0;
-        pe_ctrl_PAMAC_DFF_en = 0;
-        pe_ctrl_PAMAC_first_cycle = 0;
-        pe_ctrl_PAMAC_MDecomp = 0;
-        pe_ctrl_PAMAC_AWDecomp = 0;
-        pe_ctrl_current_tap = 0;
-        pe_ctrl_DRegs_en = 0;
-        pe_ctrl_DRegs_clr = 0;
-        pe_ctrl_DRegs_in_sel = 0;
-        pe_ctrl_index_update_en = 0;
-        pe_ctrl_out_mux_sel = 0;
-        pe_ctrl_out_reg_en = 0;
-        pe_ctrl_AFIFO_write = 0;
-        pe_ctrl_AFIFO_read = 0; 
-        pe_ctrl_ACCFIFO_write = 0;
-        pe_ctrl_ACCFIFO_read = 0;
-        pe_ctrl_ACCFIFO_read_to_outbuffer = 0;
-        pe_ctrl_out_mux_sel_PE = 0;//
-        pe_ctrl_out_to_right_pe_en = 0;	
-        pe_ctrl_add_zero = 0;
-        pe_ctrl_feed_zero_to_accfifo = 0;
-        pe_ctrl_accfifo_head_to_tail = 0;
-        pe_ctrl_which_accfifo_for_compute = 0;
-        pe_ctrl_which_afifo_for_compute = 0; 
-        pe_ctrl_compute_AFIFO_read_delay_enable = 0;
-        pe_ctrl_last_row_shadow_AFIFO_write = 0;
-
-    end
     /************ Helper Variables********************/
     int kernel_size_per_layer[52] = '{3,3,1,1,3,1,1,3,1,1,3,1,1,3,1,1,3,1,1,3,1,1,3,1,1,3,1,1,3,1,1,3,1,1,3,1,1,3,1,1,3,1,1,3,1,1,3,1,1,3,1,1};
     int is_depthwise[52] = '{0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0};
@@ -299,7 +294,7 @@ module FPAP_conv_layer_buff_ctrl_tb #(
         logic [64-1: 0] end_time;
         int cycle_this_layer;
         start_layer = 1;
-        end_layer = 2;
+        end_layer = 3;
         act_dir_path = "C:/Users/jy/Desktop/mopu-testbench/testdata/mobilenet";
         weight_file_path = {act_dir_path, "/weights"};
         rst_n = 1;
@@ -322,10 +317,8 @@ module FPAP_conv_layer_buff_ctrl_tb #(
             end
             weight_file_name = {"conv", layer_str, "weight.dat"};
             weight_full_path = {weight_file_path, "/", weight_file_name};
-            //DUT_Ctrl.load_weights_this_layer_from_file(weight_full_path, kernel_size_per_layer[current_layer]);
             if(is_depthwise[current_layer] == 1) begin
-                $display("The %d-th layer is dwconv.", current_layer);
-                DUT.dw_conv_one_layer_BuffCtrlGen(
+                DUT.dw_conv_one_layer_compute_buff_ctrl(
                     act_file_path,
                     weight_full_path,
                     stride_per_layer[current_layer],
@@ -335,7 +328,7 @@ module FPAP_conv_layer_buff_ctrl_tb #(
                 );
             end
             else begin
-                DUT.normal_conv_one_layer_BuffCtrlGen(
+                DUT.normal_conv_one_layer_compute_buff_ctrl(
                     act_file_path,
                     weight_full_path,
                     in_ch_per_layer[current_layer],
@@ -348,6 +341,7 @@ module FPAP_conv_layer_buff_ctrl_tb #(
         end
         $finish;
     end
+
 //************************************************************************
 //function called clogb2 that returns an integer which has the
 //value of the ceiling of the log base 2.
