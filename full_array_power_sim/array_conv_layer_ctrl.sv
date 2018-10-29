@@ -440,6 +440,12 @@ module ArrayConvLayerCtrl#(parameter
         return a > b ? b : a;
     endfunction
 
+    task init_double_accfifo_output();
+        ConvOneRowCtrl.array_init_accfifo_output();
+        pe_ctrl_which_accfifo_for_compute = ~pe_ctrl_which_accfifo_for_compute;
+        ConvOneRowCtrl.array_init_accfifo_output();
+        pe_ctrl_which_accfifo_for_compute = ~pe_ctrl_which_accfifo_for_compute;
+    endtask
     /****** The interface for outside controller********/
     task dw_conv_one_layer(
         //just a file_path, not a file name, the file name should be
@@ -466,6 +472,7 @@ module ArrayConvLayerCtrl#(parameter
         end
         // load weights from file
         load_weights_this_layer_from_file(weight_file_full_path,kernel_size);
+        init_double_accfifo_output();
         // figure out workload of each column
         ConvOneRowCtrl.dw_conv_pe_workload_gen(
             fm_size,
@@ -552,6 +559,7 @@ module ArrayConvLayerCtrl#(parameter
         load_weights_this_layer_from_file(weight_file_full_path, kernel_size);
         pe_ctrl_which_accfifo_for_compute = 0;
         pe_ctrl_which_afifo_for_compute = 0;
+        init_double_accfifo_output();
         is_first_conv_stage = 1;
         for(cout_start_idx = 0; cout_start_idx < num_outch; cout_start_idx+=max_outch_per_time) begin
             for(tiled_col_start = 0; tiled_col_start<fm_size; tiled_col_start += tiled_col_size * stride)begin

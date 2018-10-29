@@ -30,8 +30,8 @@ assign ACCFIFO_0_read = which_fifo_to_compute ? shadow_fifo_read : compute_fifo_
 assign ACCFIFO_1_read = which_fifo_to_compute ? compute_fifo_read : shadow_fifo_read;
 assign ACCFIFO_0_write = which_fifo_to_compute ? 0 : compute_fifo_write;
 assign ACCFIFO_1_write = which_fifo_to_compute ? compute_fifo_write : 0;
-assign compute_fifo_data_out = which_fifo_to_compute ? ACCFIFO_1_data_out : ACCFIFO_0_data_out;
-assign shadow_fifo_data_out = which_fifo_to_compute ? ACCFIFO_0_data_out : ACCFIFO_1_data_out;
+//assign compute_fifo_data_out = which_fifo_to_compute ? ACCFIFO_1_data_out : ACCFIFO_0_data_out;
+//assign shadow_fifo_data_out = which_fifo_to_compute ? ACCFIFO_0_data_out : ACCFIFO_1_data_out;
 
 FIFO #(
     .nb_data               ( nb_data                            ),

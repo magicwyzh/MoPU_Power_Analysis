@@ -1,3 +1,4 @@
+`timescale 1ns/1ns
 module conv_one_layer_buff_ctrl#(
     num_pe_row = 16,
     num_pe_col = 16,
@@ -210,7 +211,8 @@ module conv_one_layer_buff_ctrl#(
             WBuff_rEn_AH[bank_idx] = 1;
             @(posedge clk);
             WBuff_rEn_AH[bank_idx] = 0;
-            WBuff_weight_load_en[bank_idx][k] = 1;
+            WBuff_weight_load_en[bank_idx] = 0;
+            WBuff_weight_load_en[bank_idx][k] = 1'b1;
         end
         @(posedge clk);
         WBuff_weight_load_en[bank_idx] = 0;
@@ -280,7 +282,7 @@ module conv_one_layer_buff_ctrl#(
                     begin
                         if(cc < num_out_ch_effective) begin
                             WBuff_Bank_Save_In_NormalConv_Weights(
-                                c,//bank_idx
+                                cc,//bank_idx
                                 kernel_size,
                                 in_ch_idx,
                                 out_ch_start_idx + cc, //out_ch_idx
@@ -289,8 +291,9 @@ module conv_one_layer_buff_ctrl#(
                             );
                         end
                     end
-                join
+                join_none
             end
+            wait fork;
         end:isolation_wbuff_save_in_normal_conv
     endtask
 
@@ -504,13 +507,14 @@ module conv_one_layer_buff_ctrl#(
         for(int i = 0; i < act_this_row[pe_row_idx].size(); i++) begin
             //if(first_time_of_this_infm_tile) begin=
             if(first_time_of_this_infm_tile) begin
-                ActBuff_wEn_AH[pe_row_idx] = 1;
                 ActBuff_wAddr[pe_row_idx] = cin_inner_group_idx * ACCFIFO_size + i; 
                 ActBuff_data_in[pe_row_idx] = act_this_row[pe_row_idx][i];
+                ActBuff_wEn_AH[pe_row_idx] = 1;
             end
             if(i > 0) begin
-                ActBuff_rEn_AH[pe_row_idx] = 1;
+                #1;
                 ActBuff_rAddr[pe_row_idx] = cin_inner_group_idx * ACCFIFO_size + i - 1;
+                ActBuff_rEn_AH[pe_row_idx] = 1;
             end
             @(posedge clk);
         end
@@ -574,6 +578,7 @@ module conv_one_layer_buff_ctrl#(
         int infm_row_idx;
         infm_col_tile_idx = tiled_col_start / ACCFIFO_size;
         for(int cin_inner_group_idx = 0; cin_inner_group_idx < end_of_cin_idx_in_group; cin_inner_group_idx++) begin
+            //$display("@%t, start save in normalConv Weights",$time);
             WBuff_Save_In_NormalConv_Weights(
                 kernel_size,
                 cin_inner_group_idx + cin_start_idx,
@@ -582,6 +587,7 @@ module conv_one_layer_buff_ctrl#(
                 num_inch,
                 0 //start_addr
             );
+            //$display("@%t, End save in normalConv Weights",$time);
             for(int kernel_row = 0; kernel_row < kernel_size; kernel_row++) begin
                 fork
                     WBuff_Load_Out_WRegs(

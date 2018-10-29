@@ -60,6 +60,7 @@ module SinglePEScheduler #(parameter
             input first_acc_flag, 
             input clr_pe_scheduler_done,
 			output logic hungry_for_act,
+			input init_accfifo_output,
         /**** end of ports with array scheduler****/
         
         /**** Misc ports***************/
@@ -73,6 +74,21 @@ logic never_start;
 initial begin
 	never_start = 1;
 end
+
+task accfifo_init();
+	feed_zero_to_accfifo = 1;
+	ACCFIFO_write = 1;
+	@(posedge clk);
+	ACCFIFO_read = 1;
+	ACCFIFO_write = 0;
+	@(posedge clk);
+	ACCFIFO_read = 0;
+	feed_zero_to_accfifo = 0;
+endtask
+always@(posedge init_accfifo_output) begin
+	accfifo_init();
+end
+
 // use this one to make sure that the first time a singlePEScheduler is called will 
 // not let the input to the adder in the PE be x from the ACCFIFO.
 // Only after run one time with first_acc_flag, will the first_acc_flag_processed be the same

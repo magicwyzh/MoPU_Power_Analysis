@@ -190,7 +190,7 @@ OutBuff_for_power_analysis #(
     .wAddr_fr_dummy_ctrl_even        (OutBuff_wAddr_even        ),
     .wAddr_fr_dummy_ctrl_odd         (OutBuff_wAddr_odd        ),
     .rAddr_fr_dummy_ctrl_even        (OutBuff_rAddr_even        ),
-    .rAddr_fr_dummy_ctrl_odd         (OutBuff_wAddr_odd          ),
+    .rAddr_fr_dummy_ctrl_odd         (OutBuff_rAddr_odd          ),
     .array_out_even_col              (array_out_even_col              ),
     .array_out_odd_col               (array_out_odd_col               ),
     .next_data_fr_array_valid        (next_data_fr_array_valid        ),

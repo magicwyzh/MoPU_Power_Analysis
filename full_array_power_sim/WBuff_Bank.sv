@@ -44,14 +44,13 @@ TS6N28HPCPHVTA72X16M2F ram(
 	.CLKR(clk),
 	.Q(buffer_data_out)
 );	
-		
 reg [weight_width-1: 0] WRegs_packed[nb_taps-1: 0];
 reg [ETC_width-1: 0] WETCs_packed[nb_taps-1: 0];
 reg [weight_bpr_width-1: 0] WBPRs_packed[nb_taps-1: 0];
 
 integer i;
 always@(posedge clk or negedge rst_n) begin
-	if((!rst_n) || (clear_all_wregs)) begin
+	if(!rst_n) begin
 		for(i = 0; i < nb_taps; i = i + 1) begin
 			WRegs_packed[i] <= 0;
 			WETCs_packed[i] <= 0;
@@ -59,11 +58,20 @@ always@(posedge clk or negedge rst_n) begin
 		end
 	end
 	else begin
-		for(i = 0; i < nb_taps;i = i + 1 ) begin
-			if(weight_load_en[i] == 1) begin
-				WRegs_packed[i] <= weight;
-				WETCs_packed[i] <= etc;
-				WBPRs_packed[i] <= bpr;
+		if(clear_all_wregs) begin
+			for(i = 0; i < nb_taps; i = i + 1) begin
+				WRegs_packed[i] <= 0;
+				WETCs_packed[i] <= 0;
+				WBPRs_packed[i] <= 0;
+			end
+		end
+		else begin
+			for(i = 0; i < nb_taps;i = i + 1 ) begin
+				if(weight_load_en[i] == 1) begin
+					WRegs_packed[i] <= weight;
+					WETCs_packed[i] <= etc;
+					WBPRs_packed[i] <= bpr;
+				end
 			end
 		end
 	end

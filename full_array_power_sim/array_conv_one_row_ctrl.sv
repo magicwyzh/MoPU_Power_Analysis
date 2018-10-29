@@ -107,6 +107,7 @@ module ArrayConvOneRowCtrl #(parameter
         logic act_feed_done[num_pe_row-1: 0][num_pe_col-1: 0]; 
         logic single_pe_scheduler_start[num_pe_row-1: 0][num_pe_col-1: 0]; 
         logic clr_pe_scheduler_done;
+        logic init_accfifo_output;
     /******** End of Wires between array scheduler and SinglePEScheduler****/
 
 
@@ -415,6 +416,7 @@ module ArrayConvOneRowCtrl #(parameter
                     .WBPRs_packed(WBPRs[gen_j]),
                     .hungry_for_act(hungry_for_act[gen_i][gen_j]),
                     .first_acc_flag(first_acc_flag[gen_j+gen_i*num_pe_col]),
+                    .init_accfifo_output(init_accfifo_output),
                     .* // n_ap, first_acc_flag, quantized_bits, kernel_size, clr_pe_scheduler_done
                 );
             end
@@ -611,6 +613,12 @@ module ArrayConvOneRowCtrl #(parameter
         clr_pe_scheduler_done = 0;
     endtask
 
+    task array_init_accfifo_output();
+        init_accfifo_output = 1;
+        @(posedge clk);
+        init_accfifo_output = 0;
+        repeat(3) @(posedge clk);
+    endtask
 
     task automatic array_normal_conv_one_row_task();
         // interact with all pes in the array
@@ -770,5 +778,6 @@ module ArrayConvOneRowCtrl #(parameter
         end
         PAMAC_MDecomp = 0;
         PAMAC_AWDecomp = 1;
+        init_accfifo_output = 0;
     end
 endmodule
