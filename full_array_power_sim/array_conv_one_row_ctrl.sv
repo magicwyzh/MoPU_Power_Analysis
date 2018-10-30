@@ -189,7 +189,7 @@ module ArrayConvOneRowCtrl #(parameter
                 else begin
                     pe_data_compressed_act_in[pe_array_row_idx] = 0;//feed zero and the results are no use
                 end
-                @(posedge clk);
+                @(posedge clk) #(`HOLD_TIME_DELTA);
             end
             pe_ctrl_AFIFO_write[pe_array_row_idx*num_pe_col+pe_array_col_idx] = 0;
         endtask
@@ -297,7 +297,7 @@ module ArrayConvOneRowCtrl #(parameter
                 else begin
                     pe_data_last_row_shadow_AFIFO_data_in[pe_col_idx] = 0;
                 end
-                @(posedge clk);
+                @(posedge clk) #(`HOLD_TIME_DELTA);
             end
             pe_ctrl_last_row_shadow_AFIFO_write[pe_col_idx] = 0;
         endtask
@@ -482,21 +482,20 @@ module ArrayConvOneRowCtrl #(parameter
             //just readout but not used to update the systolic data chain reg
             for(int i = 0; i < 2;i++) begin
                 pe_ctrl_ACCFIFO_read_to_outbuffer = {total_num_pe{1'b1}};
-                @(posedge clk);
+                @(posedge clk) #(`HOLD_TIME_DELTA);
             end
             pe_ctrl_ACCFIFO_read_to_outbuffer = 0;
         end
 
         pe_ctrl_out_to_right_pe_en = 0;
         pe_ctrl_ACCFIFO_read_to_outbuffer = {total_num_pe{1'b1}};
-        @(posedge clk);
-        #1;
+        @(posedge clk) #(`HOLD_TIME_DELTA);
         while(!is_all_accfifo_empty()) begin
             pe_ctrl_ACCFIFO_read_to_outbuffer = 0;
             pe_ctrl_out_to_right_pe_en = {total_num_pe{1'b1}}; //all 1
             pe_ctrl_out_mux_sel_PE = 0; // select data from ACCFIFO
             array_next_cycle_data_to_outbuff_valid = 1;
-            @(posedge clk);
+            @(posedge clk) #(`HOLD_TIME_DELTA);
             //now all register in the systolic data chain has data.
             pe_ctrl_out_mux_sel_PE = {total_num_pe{1'b1}}; //all 1 to select from left PE out
             pe_ctrl_out_to_right_pe_en = {total_num_pe{1'b1}};
@@ -507,7 +506,7 @@ module ArrayConvOneRowCtrl #(parameter
                 if(i == (num_pe_col/2 - 2)) begin
                     pe_ctrl_ACCFIFO_read_to_outbuffer = {total_num_pe{1'b1}};                    
                 end
-                @(posedge clk); 
+                @(posedge clk) #(`HOLD_TIME_DELTA); 
                 /*
                 if(!is_all_accfifo_empty() && i == num_pe_col/2 - 2) begin
                     //pe_ctrl_out_to_right_pe_en = ~pe_ctrl_out_to_right_pe_en; //all 1
@@ -522,11 +521,11 @@ module ArrayConvOneRowCtrl #(parameter
         pe_ctrl_out_mux_sel_PE = 0;
         array_next_cycle_data_to_outbuff_valid = 1;
         pe_ctrl_ACCFIFO_read_to_outbuffer = 0;
-        @(posedge clk);
+        @(posedge clk) #(`HOLD_TIME_DELTA);
         pe_ctrl_out_mux_sel_PE = {total_num_pe{1'b1}};
         pe_ctrl_out_to_right_pe_en = {total_num_pe{1'b1}};
         for(int i = 0; i < num_pe_col/2 - 1; i++) begin 
-            @(posedge clk); 
+            @(posedge clk) #(`HOLD_TIME_DELTA); 
         end       
         //clear those signals
         array_next_cycle_data_to_outbuff_valid = 0;
@@ -546,11 +545,11 @@ module ArrayConvOneRowCtrl #(parameter
         pe_ctrl_out_to_right_pe_en[idx_1d] = 0;
         while(!pe_ctrl_ACCFIFO_empty[idx_1d]) begin
             pe_ctrl_ACCFIFO_read_to_outbuffer[idx_1d] = 1;
-            @(posedge clk);
+            @(posedge clk) #(`HOLD_TIME_DELTA);
             pe_ctrl_out_to_right_pe_en[idx_1d] = 1;
         end
         pe_ctrl_ACCFIFO_read_to_outbuffer[idx_1d] = 0;
-        @(posedge clk);
+        @(posedge clk) #(`HOLD_TIME_DELTA);
         pe_ctrl_out_to_right_pe_en[idx_1d] = 0;
     endtask
 
@@ -577,8 +576,7 @@ module ArrayConvOneRowCtrl #(parameter
                     end
 
                 end
-                @(posedge clk);
-                #1;
+                @(posedge clk) #(`HOLD_TIME_DELTA);
             end
             // ensure all PEscheduler start
             for(int c = 0; c < num_pe_col; c++) begin
@@ -597,27 +595,28 @@ module ArrayConvOneRowCtrl #(parameter
                     single_pe_scheduler_start[r][c] = 1;
                 end
             end
-            @(posedge clk);
+            @(posedge clk) #(`HOLD_TIME_DELTA);
         end
         //if all afifos are fed with data, then wait for pe finish computing.
         while(!all_pe_done()) begin
             waiting_for_each_row_finish = 1;
-            @(posedge clk);
-            #1;
+            @(posedge clk) #(`HOLD_TIME_DELTA);
         end
         clear_act_feed_done();
         waiting_for_each_row_finish = 0;
         clear_all_pe_start();
         clr_pe_scheduler_done = 1;
-        @(posedge clk);
+        @(posedge clk) #(`HOLD_TIME_DELTA);
         clr_pe_scheduler_done = 0;
     endtask
 
     task array_init_accfifo_output();
         init_accfifo_output = 1;
-        @(posedge clk);
+        @(posedge clk) #(`HOLD_TIME_DELTA);
         init_accfifo_output = 0;
-        repeat(3) @(posedge clk);
+        repeat(3) begin
+            @(posedge clk) #(`HOLD_TIME_DELTA);
+        end
     endtask
 
     task automatic array_normal_conv_one_row_task();
@@ -632,7 +631,7 @@ module ArrayConvOneRowCtrl #(parameter
                 single_pe_scheduler_start[r][c] = WETCs[c] == 0 ? 0 : 1;
             end
         end
-        @(posedge clk);
+        @(posedge clk) #(`HOLD_TIME_DELTA);
         // parallel tasks issue
         begin: isolation_process
             for(int r = 0; r < num_pe_row; r++) begin
@@ -651,15 +650,14 @@ module ArrayConvOneRowCtrl #(parameter
         end:isolation_process
         while(!all_pe_done()) begin
             waiting_for_each_row_finish = 1;
-            @(posedge clk);
-            #1;
+            @(posedge clk) #(`HOLD_TIME_DELTA);
         end
         // clear all signals
         clear_act_feed_done();
         waiting_for_each_row_finish = 0;
         clear_all_pe_start();
         clr_pe_scheduler_done = 1;
-        @(posedge clk);
+        @(posedge clk) #(`HOLD_TIME_DELTA);
         clr_pe_scheduler_done = 0;
     endtask
 
@@ -668,8 +666,7 @@ module ArrayConvOneRowCtrl #(parameter
             #1;
             while(afifo_full_exist[row_idx]) begin
                 pe_ctrl_AFIFO_write[row_idx*num_pe_col+:num_pe_col] = 0;
-                @(posedge clk);
-                #1;
+                @(posedge clk) #(`HOLD_TIME_DELTA);
             end
             // can push act to afifo now
             for(int pe_col_idx = 0; pe_col_idx < num_pe_col; pe_col_idx++) begin
@@ -677,7 +674,7 @@ module ArrayConvOneRowCtrl #(parameter
             end
             pe_data_compressed_act_in[row_idx] = act_this_row[row_idx][act_idx];
             //$display("@%d, act_idx = %d, write data=%x", $time, act_idx, act_this_row[row_idx][act_idx]);
-            @(posedge clk);
+            @(posedge clk) #(`HOLD_TIME_DELTA);
             // clear
         end
         pe_ctrl_AFIFO_write[row_idx*num_pe_col +: num_pe_col] = 0;
@@ -692,7 +689,7 @@ module ArrayConvOneRowCtrl #(parameter
         array_normal_conv_one_row_task();
         //triggered by a start signal and then return a synchronized done signal...
         array_conv_one_row_done = 1; 
-        @(posedge clk);
+        @(posedge clk) #(`HOLD_TIME_DELTA);
         array_conv_one_row_done = 0;
     end
     */

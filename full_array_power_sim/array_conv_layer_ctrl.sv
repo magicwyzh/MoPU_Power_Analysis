@@ -315,7 +315,7 @@ module ArrayConvLayerCtrl#(parameter
                         end
                     end
                 end
-                @(posedge clk); // why wait? because if not wait, the normal_conv_one_row_task will get wrong wregs...why??
+                @(posedge clk) #(`HOLD_TIME_DELTA); // why wait? because if not wait, the normal_conv_one_row_task will get wrong wregs...why??
                 // compute control
                 //first_acc_flag = (kernel_row == 0 && cin_inner_group_idx == 0)? {total_num_pe{1'b1}} : 0;
                 // set the first acc flag = 1 if never compute.
@@ -392,7 +392,7 @@ module ArrayConvLayerCtrl#(parameter
         for(int cc = 0; cc<num_pe_col; cc++) begin
             load_WRegs(ch_idx, 0/*ci*/, 0/*krow*/, 1/*nb_ci*/, kernel_size_to_row_ctrl, n_ap, cc); 
         end
-        @(posedge clk); // make sure the wregs are new
+        @(posedge clk) #(`HOLD_TIME_DELTA); // make sure the wregs are new
         pe_ctrl_compute_AFIFO_read_delay_enable = {total_num_pe{1'b1}};
         first_acc_flag = {total_num_pe{1'b1}};
         fork
@@ -400,13 +400,13 @@ module ArrayConvLayerCtrl#(parameter
             ConvOneRowCtrl.array_dw_conv_one_row_task(1);
             ConvOneRowCtrl.feed_last_pe_row_shadow_afifo(infm2d_start_row+num_pe_row);
         join
-        @(posedge clk);
+        @(posedge clk) #(`HOLD_TIME_DELTA);
         first_acc_flag = 0;
         for(int krow = 1; krow < kernel_size_to_row_ctrl;krow++) begin
             for(int cc = 0; cc<num_pe_col; cc++) begin
                 load_WRegs(ch_idx, 0, krow, 1, kernel_size_to_row_ctrl, n_ap, cc); 
             end
-            @(posedge clk); // make sure the wregs are new
+            @(posedge clk) #(`HOLD_TIME_DELTA); // make sure the wregs are new
             pe_ctrl_which_afifo_for_compute = ~pe_ctrl_which_afifo_for_compute;
             pe_ctrl_compute_AFIFO_read_delay_enable = krow == (kernel_size_to_row_ctrl-1)? 0 : {total_num_pe{1'b1}}; 
             fork

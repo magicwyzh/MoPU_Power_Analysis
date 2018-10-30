@@ -78,10 +78,10 @@ end
 task accfifo_init();
 	feed_zero_to_accfifo = 1;
 	ACCFIFO_write = 1;
-	@(posedge clk);
+	@(posedge clk) #(`HOLD_TIME_DELTA);
 	ACCFIFO_read = 1;
 	ACCFIFO_write = 0;
-	@(posedge clk);
+	@(posedge clk) #(`HOLD_TIME_DELTA);
 	ACCFIFO_read = 0;
 	feed_zero_to_accfifo = 0;
 endtask
@@ -110,7 +110,7 @@ always@(posedge start) begin
 			if(!AFIFO_empty) begin
 				hungry_for_act = 0;
 				AFIFO_read = 1;
-				@(posedge clk);
+				@(posedge clk) #(`HOLD_TIME_DELTA);
 				ACCFIFO_write = 0;
 				AFIFO_read = 0;
 				#1;
@@ -130,7 +130,7 @@ always@(posedge start) begin
 			end
 			else begin
 				hungry_for_act = 1;
-				@(posedge clk); 
+				@(posedge clk) #(`HOLD_TIME_DELTA); 
 				ACCFIFO_write = 0;
 			end
 		end:WRegs_Packed_Not_Zero
@@ -141,7 +141,7 @@ always@(posedge start) begin
 			if(!AFIFO_empty) begin
 				hungry_for_act = 0;
 				AFIFO_read = 1;
-				@(posedge clk);
+				@(posedge clk) #(`HOLD_TIME_DELTA);
 				AFIFO_read = 0;
 				ACCFIFO_write = 0;
 				if(first_acc_flag_processed) begin
@@ -150,13 +150,13 @@ always@(posedge start) begin
 					if(afifo_out[compressed_act_width-1] == 0) begin
 						//one data, not continuous zero
 						ACCFIFO_write = 1;
-						@(posedge clk);
+						@(posedge clk) #(`HOLD_TIME_DELTA);
 						ACCFIFO_write = 0;
 					end
 					else begin
 						for(int i=0; i < afifo_out[activation_width-1: 0];i++) begin
 							ACCFIFO_write = 1;
-							@(posedge clk);
+							@(posedge clk) #(`HOLD_TIME_DELTA);
 						end
 						ACCFIFO_write = 0;
 					end
@@ -165,13 +165,13 @@ always@(posedge start) begin
 			end
 			else begin
 				hungry_for_act = 1;
-				@(posedge clk);
+				@(posedge clk) #(`HOLD_TIME_DELTA);
 				ACCFIFO_write = 0;
 			end
 		end:WRegs_Packed_Is_Zero
 		#1; // delay for obtaining the value of finish_condition
 	end
-	@(posedge clk);
+	@(posedge clk) #(`HOLD_TIME_DELTA);
 	hungry_for_act = 0;
     ACCFIFO_write = 0;
     AFIFO_read = 0;
@@ -247,7 +247,7 @@ begin
 		out_mux_sel = 1;
 		current_tap = 0;
 		out_reg_en = 1;
-		@(posedge clk);
+		@(posedge clk) #(`HOLD_TIME_DELTA);
 		out_mux_sel = 0;
 		out_reg_en = 0;
 		return;
@@ -318,7 +318,7 @@ begin
 				valid_result_trig = 1;
 			else 
 				valid_result_trig = 0;
-			@(posedge clk);
+			@(posedge clk) #(`HOLD_TIME_DELTA);
 			out_reg_en = 0;
 			DRegs_in_sel = 0;
 			DRegs_clr = 0;
@@ -337,7 +337,7 @@ begin
 				current_tap = i;
 				valid_result_trig = 1;
 				DRegs_clr = i == 0 ? {nb_taps{1'b1}} : 0;//clear all regs after the last cycle
-				@(posedge clk);
+				@(posedge clk) #(`HOLD_TIME_DELTA);
 			end
 		end
 		else begin
@@ -353,7 +353,7 @@ begin
 				DRegs_clr = 0;
 				DRegs_clr[(PD0+kernel_size-1)%nb_taps] = 1;
 				valid_result_trig = 1;
-				@(posedge clk);
+				@(posedge clk) #(`HOLD_TIME_DELTA);
 			end
 		end
 		
@@ -407,11 +407,11 @@ task automatic ACCFIFO_ctrl_process_when_computing();
 	if(afifo_out[compressed_act_width-1] == 0) begin
 		#1;
 		while(!valid_result_trig) begin
-			@(posedge clk);
+			@(posedge clk) #(`HOLD_TIME_DELTA);
 			#1;
 		end
 		ACCFIFO_read = first_acc_flag_processed ? 0:1;
-		@(posedge clk);
+		@(posedge clk) #(`HOLD_TIME_DELTA);
 		// put head_to_tail/feed_zero_to_accfifo here to ensure correct data goto the accfifo
 		accfifo_head_to_tail = 0;
 		feed_zero_to_accfifo = 0;
@@ -434,10 +434,10 @@ task automatic ACCFIFO_ctrl_process_when_computing();
 				ACCFIFO_read = first_acc_flag_processed ? 0 : 1;
 				add_zero = first_acc_flag_processed ? 1:0;
 				$display("In Module %m, @%t, the valid trig should be 1 but not meet", $time);
-				@(posedge clk);
+				@(posedge clk) #(`HOLD_TIME_DELTA);
 				$stop;
 			end
-			@(posedge clk);
+			@(posedge clk) #(`HOLD_TIME_DELTA);
 			accfifo_head_to_tail = 0;
 			feed_zero_to_accfifo = 0;
 			ACCFIFO_write = 1;
@@ -454,7 +454,7 @@ task automatic ACCFIFO_ctrl_process_when_computing();
 				else begin
 					ACCFIFO_read = 0;
 				end
-				@(posedge clk);
+				@(posedge clk) #(`HOLD_TIME_DELTA);
 				ACCFIFO_write = 1;
 				if(!first_acc_flag_processed) begin
 					accfifo_head_to_tail = 1;
@@ -482,7 +482,7 @@ task automatic ACCFIFO_pre_read_when_computing();
         if(afifo_out[compressed_act_width-1] == 0) begin
             //not a zero act
             ACCFIFO_read = first_acc_flag_processed ? 0:1;
-            @(posedge clk);
+            @(posedge clk) #(`HOLD_TIME_DELTA);
             ACCFIFO_read = 0;
         end
         else begin
@@ -501,14 +501,14 @@ task automatic ACCFIFO_pre_read_when_computing();
                     add_zero = first_acc_flag_processed ? 1:0;
                     $display("In Module %m, @%t, the valid trig should be 1 but not meet", $time);
                 end
-                @(posedge clk);
+                @(posedge clk) #(`HOLD_TIME_DELTA);
                 ACCFIFO_write = 1;
             end
             if(zero_more_than_kernel_size && !first_acc_flag_processed) begin
                 // need to put head to tail
                 ACCFIFO_read = 1;
             end
-            @(posedge clk);
+            @(posedge clk) #(`HOLD_TIME_DELTA);
             ACCFIFO_read = 0;
             ACCFIFO_write = 0;
             // add some more cycles feeding zero to the ACCFIFO or feed head to tail if so many zeros
@@ -521,7 +521,7 @@ task automatic ACCFIFO_pre_read_when_computing();
                         feed_zero_to_accfifo = 1;
                         accfifo_head_to_tail = 0;
                         ACCFIFO_write = 1;
-                        @(posedge clk);
+                        @(posedge clk) #(`HOLD_TIME_DELTA);
                         #1;
                     end
                     else begin
@@ -529,7 +529,7 @@ task automatic ACCFIFO_pre_read_when_computing();
                         accfifo_head_to_tail = 1;
                         ACCFIFO_read = (tt < (diff - 1)) ? 1 : 0;
                         ACCFIFO_write = 1;
-                        @(posedge clk);
+                        @(posedge clk) #(`HOLD_TIME_DELTA);
                         #1;
                     end
                 end
@@ -596,7 +596,7 @@ task automatic ACCFIFO_pre_read_when_computing();
 				PAMAC_DFF_en = 1;
 				PAMAC_BPEB_sel = t;
 				if(t > last_essential_term_idx) begin
-					@(posedge clk);	//wait for the posedge except for the last cycle
+					@(posedge clk) #(`HOLD_TIME_DELTA);	//wait for the posedge except for the last cycle
 					PAMAC_first_cycle = 0;
 				end
 			end

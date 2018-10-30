@@ -196,7 +196,7 @@ module conv_one_layer_buff_ctrl#(
     /****** WBuff R/W tasks*********/
     task clear_WRegs(); 
         WBuff_clear_all_wregs = 1;
-        @(posedge clk);
+        @(posedge clk) #(`HOLD_TIME_DELTA);
         WBuff_clear_all_wregs = 0;
     endtask
 
@@ -209,12 +209,12 @@ module conv_one_layer_buff_ctrl#(
         for(int k = 0; k < kernel_size; k++) begin    
             WBuff_rAddr[bank_idx] = start_addr + k;
             WBuff_rEn_AH[bank_idx] = 1;
-            @(posedge clk);
+            @(posedge clk) #(`HOLD_TIME_DELTA);
             WBuff_rEn_AH[bank_idx] = 0;
             WBuff_weight_load_en[bank_idx] = 0;
             WBuff_weight_load_en[bank_idx][k] = 1'b1;
         end
-        @(posedge clk);
+        @(posedge clk) #(`HOLD_TIME_DELTA);
         WBuff_weight_load_en[bank_idx] = 0;
     endtask
 
@@ -236,7 +236,7 @@ module conv_one_layer_buff_ctrl#(
                                                         1, //nb_ci
                                                         kernel_size //kernel_size
                                                     );
-                @(posedge clk);
+                @(posedge clk) #(`HOLD_TIME_DELTA);
             end
         end
         WBuff_wEn_AH[bank_idx] = 0;
@@ -262,7 +262,7 @@ module conv_one_layer_buff_ctrl#(
                                                         num_cin, //nb_ci
                                                         kernel_size //kernel_size
                                                     );
-                @(posedge clk);
+                @(posedge clk) #(`HOLD_TIME_DELTA);
             end
         end
         WBuff_wEn_AH[bank_idx] = 0;
@@ -387,7 +387,7 @@ module conv_one_layer_buff_ctrl#(
                     WBuff_rAddr[pe_col_idx] = 32;
                 end
             end
-            @(posedge clk);
+            @(posedge clk) #(`HOLD_TIME_DELTA);
         end
         WBuff_wEn_AH = 0;
         // read the last one 
@@ -426,7 +426,7 @@ module conv_one_layer_buff_ctrl#(
                 end
             end
             // read after the first data is out
-            @(posedge clk);
+            @(posedge clk) #(`HOLD_TIME_DELTA);
         end
         // stop write
         ActBuff_wEn_AH = 0;
@@ -438,7 +438,7 @@ module conv_one_layer_buff_ctrl#(
             ActBuff_rEn_AH[j] = 1;
             ActBuff_rAddr[j] = infm2d_width-1;
         end
-        @(posedge clk);
+        @(posedge clk) #(`HOLD_TIME_DELTA);
         ActBuff_rEn_AH = 0;
     endtask
 
@@ -516,12 +516,12 @@ module conv_one_layer_buff_ctrl#(
                 ActBuff_rAddr[pe_row_idx] = cin_inner_group_idx * ACCFIFO_size + i - 1;
                 ActBuff_rEn_AH[pe_row_idx] = 1;
             end
-            @(posedge clk);
+            @(posedge clk) #(`HOLD_TIME_DELTA);
         end
         ActBuff_wEn_AH[pe_row_idx] = 0;
         ActBuff_rEn_AH[pe_row_idx] = 1;
         ActBuff_rAddr[pe_row_idx] = cin_inner_group_idx * ACCFIFO_size + act_this_row[pe_row_idx].size() - 1;
-        @(posedge clk);
+        @(posedge clk) #(`HOLD_TIME_DELTA);
         ActBuff_rEn_AH[pe_row_idx] = 0;
     endtask
     /**** Conv Utils******/
@@ -534,12 +534,12 @@ module conv_one_layer_buff_ctrl#(
             kernel_size,
             0//start_addr
         );
-        @(posedge clk); // make sure the wregs are new
+        @(posedge clk) #(`HOLD_TIME_DELTA); // make sure the wregs are new
         fork
             load_infm2d_to_array(infm2d_start_row);
             feed_last_pe_row_shadow_afifo(infm2d_start_row+num_pe_row);
         join
-        @(posedge clk);
+        @(posedge clk) #(`HOLD_TIME_DELTA);
         for(int krow = 1; krow < kernel_size;krow++) begin
             WBuff_Load_Out_WRegs(
                 kernel_size,
