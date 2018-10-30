@@ -302,7 +302,7 @@ module FPAP_Ctrl_tb #(
         logic [64-1: 0] end_time;
         int cycle_this_layer;
         start_layer = 1;
-        end_layer = 3;
+        end_layer = 40;
         //act_dir_path = "C:/Users/jy/Desktop/mopu-testbench/testdata/mobilenet";
         act_dir_path = "C:/Users/jy/Desktop/mopu-testbench/testdata/a8w8";
         weight_file_path = {act_dir_path, "/weights"};
@@ -311,8 +311,11 @@ module FPAP_Ctrl_tb #(
         rst_n = 0;
         #20;
         rst_n = 1;
+        log_fp = $fopen("PerLayerCyclePerf.log", "w");
+        $fdisplay(log_fp, "Layer_Index\tIsDepthwise\tInCh\tOutCh\tInfmSize\tTime\tNumberOfCycle\tPerformance(Op/Cycle)");
         @(posedge clk);
         for(current_layer = start_layer; current_layer<end_layer;current_layer++) begin
+            start_time = $time;
             kernel_size = kernel_size_per_layer[current_layer];
             if(stride_per_layer[current_layer] != 1) begin
                 continue;
@@ -347,7 +350,36 @@ module FPAP_Ctrl_tb #(
                     kernel_size_per_layer[current_layer]
                 );
             end
+            end_time = $time;
+            if(is_depthwise[current_layer] == 1) begin
+                total_op_this_layer = (fm_size_per_layer[current_layer] - 2) * (fm_size_per_layer[current_layer] - 2) * out_ch_per_layer[current_layer] * kernel_size_per_layer[current_layer] * kernel_size_per_layer[current_layer];
+            end
+            else begin
+                total_op_this_layer = fm_size_per_layer[current_layer]*fm_size_per_layer[current_layer]*out_ch_per_layer[current_layer]*kernel_size_per_layer[current_layer]*kernel_size_per_layer[current_layer]*in_ch_per_layer[current_layer];
+            end
+            cycle_this_layer = (end_time - start_time)/20;
+            if(stride_per_layer[current_layer]==1) begin
+                $fdisplay(
+                    log_fp, 
+                    "%d\t\t%s\t%d\t%d\t%d\t%t\t%d\t%d", 
+                    current_layer, is_depthwise[current_layer]?"Yes":"No",
+                    in_ch_per_layer[current_layer], out_ch_per_layer[current_layer],
+                    fm_size_per_layer[current_layer], end_time-start_time,
+                    cycle_this_layer, total_op_this_layer/cycle_this_layer
+                );
+                $display(
+                    "layer_idx:%d\tDepthWise:%s\tInCh:%d\tOutCh:%d\tfmsize:%d\tElapsedTime(ns):%t\t#Cycle:%d\tOP/Cycle:%d", 
+                    current_layer, is_depthwise[current_layer]?"Yes":"No",
+                    in_ch_per_layer[current_layer], out_ch_per_layer[current_layer],
+                    fm_size_per_layer[current_layer], end_time-start_time,
+                    cycle_this_layer, total_op_this_layer/cycle_this_layer
+                );
+            end
+            else begin
+                $fdisplay(log_fp, "%d\tN/A\tN/A\tN/A\tN/A\tN/A\tN/A\tN/A", current_layer);
+            end
         end
+        $fclose(log_fp);
         $finish;
     end
 
