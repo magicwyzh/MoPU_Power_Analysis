@@ -10,7 +10,12 @@
 
 4. 所以对于depthwise Conv这种memory bound的情况，其实应该要考虑的是再进一步提高feed 数据的on-chip Buffer带宽，所以实际上OutBuffer也应该参与到feed数据中来。。比如在fm size > num_pe_col/2的情况下， outbuffer中应该存有右半部分的infm。。在fm_size < num_pe_col/2的情况下，outbuffer应该保存有其他channel的 infm数据。。现在暂时先不搞这个了，留着以后搞吧。估计这个还能再提升一倍的perf。。 
 
-5. 发现了VCS和Modelsim行为不一致，其实这个主要原因就是我的control经常就是@(posedge clk);然后就直接开始直接操作一些控制信号了。在Modelsim里面，Datapath中的寄存器会正常地采样上个周期结束时候一些信号的值，但是换成VCS之后发现DataPath就直接采样了新信号，就会出错。找了半天其实发现解决办法应该是在@(posedge clk)之后都稍微延迟一下再去产生控制信号。按照网上的说法（http://www.cnblogs.com/yuphone/archive/2010/12/31/1922614.html 事件控制section），这个其实就是要avoid hold-time violation的。其实我觉得中间的逻辑大概是这样的：在每个posedge clk到来之后，Modelsim会首先去更新底层模块中各个信号的值，所以会采样到旧信号，而VCS是自上而下的，所以Modelsim的行为符合预期而VCS的行为不符合预期。
+5. 在实现Buffer control的时候，是通过一个额外的buffer_ctrl.sv来实现的，里面和compute ctrl一样也有一堆模拟tiling的for循环，并没有和compute ctrl合并在一起，而是在每个layer开始的时候一次性把这个layer所有的读写都搞定。
+outputbuffer没有专门去进行control，而是直接接到PEArray上面，然后在outbuffer里面添加一个counter8K用来产生读写地址，而control产生的next_cycle_data_valid用来当作rEn of Outbuffer，delay之后作为wEn。反正主要就是让每次PE Array需要把结果写入OutBuffer的时候都有地方写入就可以了，并不需要真的有什么具体的地址，因为只是power analysis。
+
+6. 另外OutBuffer之类的也重新实现了一下，不过还是没有调成8bit Buffer，还是16bit Buffer。然后读写的办法也还是一次出来一个weight data，没有在低bit的时候把多个weight pack起来减少读写。
+
+7. 发现了VCS和Modelsim行为不一致，其实这个主要原因就是我的control经常就是@(posedge clk);然后就直接开始直接操作一些控制信号了。在Modelsim里面，Datapath中的寄存器会正常地采样上个周期结束时候一些信号的值，但是换成VCS之后发现DataPath就直接采样了新信号，就会出错。找了半天其实发现解决办法应该是在@(posedge clk)之后都稍微延迟一下再去产生控制信号。按照网上的说法（http://www.cnblogs.com/yuphone/archive/2010/12/31/1922614.html 事件控制section），这个其实就是要avoid hold-time violation的。其实我觉得中间的逻辑大概是这样的：在每个posedge clk到来之后，Modelsim会首先去更新底层模块中各个信号的值，所以会采样到旧信号，而VCS是自上而下的，所以Modelsim的行为符合预期而VCS的行为不符合预期。
 不过需要注意的是，我原来的code里面其实就包含了一些“#1;”这样的控制，主要是让testbench等待testbench内部信号的时候能够正确采样。而为了让VCS也有符合预期的行为，把所有:
 @(posedge clk); -> @(posedge clk) #(`HOLD_TIME_DELTA); 
 那么一个问题就来了，这个HOLD_TIME_DELTA和原来的#1是不是会重复或者冲突呢？我本来是想把所有的@(posedge clk)后的#1都删了，但是发现在VCS里仿真会有问题。。就是比如遇到一些control在等待testbench内部的其他信号（如singlePEScheduler中等待xxx_valid_trig这个信号的时候，等待的窗口期只有1个cycle，而一开始HOLD_TIME_DELTA也=1， 而原本也#1，导致采样才不采不到。。
