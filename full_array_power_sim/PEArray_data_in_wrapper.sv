@@ -81,10 +81,17 @@ generate
     /**** MUX for last PE Row Data In and WRegs/BPRs/ETCs******/
     for(gen_c = 0; gen_c < num_pe_col; gen_c++) begin
         assign pe_data_last_row_shadow_AFIFO_data_in[gen_c] = last_row_shadow_afifo_in_sel == 0 ? 
-                last_row_shadow_AFIFO_data_in_fr_dummy_ctrl[gen_c] : last_row_shadow_AFIFO_data_in_fr_wbuff[gen_c];
-        assign WRegs[gen_c] = wreg_in_sel == 0 ? WRegs_fr_dummy_ctrl[gen_c] : WRegs_fr_wbuff[gen_c];
-        assign WETCs[gen_c] = wreg_in_sel == 0 ? WETCs_fr_dummy_ctrl[gen_c] : WETCs_fr_wbuff[gen_c];
-        assign WBPRs[gen_c] = wreg_in_sel == 0 ? WBPRs_fr_dummy_ctrl[gen_c] : WBPRs_fr_wbuff[gen_c];
+                {last_row_shadow_AFIFO_data_in_fr_dummy_ctrl[gen_c][16], 9'b0, last_row_shadow_AFIFO_data_in_fr_dummy_ctrl[gen_c][6:0]} : 
+                {last_row_shadow_AFIFO_data_in_fr_wbuff[gen_c][16], 9'b0, last_row_shadow_AFIFO_data_in_fr_wbuff[gen_c][6:0]} ;
+
+        // only 3 taps are used because in mobilenet no more than 3x3
+        assign WRegs[gen_c][3*weight_width-1: 0] = wreg_in_sel == 0 ? WRegs_fr_dummy_ctrl[gen_c][3*weight_width-1: 0] : WRegs_fr_wbuff[gen_c][3*weight_width-1: 0];
+        assign WETCs[gen_c][3*ETC_width-1: 0] = wreg_in_sel == 0 ? WETCs_fr_dummy_ctrl[gen_c][3*ETC_width-1: 0] : WETCs_fr_wbuff[gen_c][3*ETC_width-1: 0];
+        assign WBPRs[gen_c][3*weight_bpr_width-1: 0] = wreg_in_sel == 0 ? WBPRs_fr_dummy_ctrl[gen_c][3*weight_bpr_width-1: 0] : WBPRs_fr_wbuff[gen_c][3*weight_bpr_width-1: 0];
+        // higher bits are of no use...
+        assign WRegs[gen_c][nb_taps*weight_width-1: 3*weight_width] = 0;
+        assign WETCs[gen_c][nb_taps*ETC_width-1: 3*ETC_width] = 0;
+        assign WBPRs[gen_c][nb_taps*weight_bpr_width-1: 3*weight_bpr_width] = 0;
     end
 endgenerate
 endmodule

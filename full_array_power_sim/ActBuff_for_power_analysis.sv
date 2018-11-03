@@ -47,7 +47,21 @@ for(i = 0; i < nb_pe_row; i = i + 1) begin
 		.CLKR(clk),
 		.Q(compressed_act_to_pe_all_rows_D[i])
 	);	
-
+/*
+	//reduced to only 8bits, because no sign bit is required
+	wire [nb_pe_row-1: 0][8-1: 0] compressed_act_to_pe_all_rows_D_reduced;
+	assign compressed_act_to_pe_all_rows_D[i] = {compressed_act_to_pe_all_rows_D_reduced[i][7], 9'b0, compressed_act_to_pe_all_rows_D_reduced[i][6:0]};
+	TS6N28HPCPHVTA768X8M8F ram(
+		.AA(wAddr[i]),
+		.D({mem_data_in_all_rows[i][16], mem_data_in_all_rows[i][6:0}),
+		.WEB(wEn[i]),
+		.CLKW(clk),
+		.AB(rAddr[i]),
+		.REB(rEn[i]),
+		.CLKR(clk),
+		.Q(compressed_act_to_pe_all_rows_D_reduced[i])
+	);	
+*/
 end
 endgenerate
 

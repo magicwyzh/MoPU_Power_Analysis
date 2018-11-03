@@ -53,7 +53,7 @@ assign fifo_1_read = which_AFIFO_for_compute == 0 ?  0 : compute_AFIFO_read;
 assign fifo_0_data_in = which_AFIFO_for_compute == 0? compute_AFIFO_data_in : shadow_AFIFO_data_in;
 assign fifo_1_data_in = which_AFIFO_for_compute == 0 ? shadow_AFIFO_data_in : compute_AFIFO_data_in;
 
-
+/*
 FIFO #(
     .nb_data               ( nb_data                            ),
     .L_data                         ( data_width                            ),
@@ -88,8 +88,50 @@ AFIFO_1(
     .clk                            ( clk                           ),
     .rst_n                          ( rst_n                         )
 );
-
-
+*/
+/************ Reduce the datapath width to 8bits to see whether the power is reduced******/
+// data in the afifo are all without sign bits. just pad the sign bit = 0 when out
+// 
+wire [8-1: 0] fifo_0_data_in_reduced, fifo_1_data_in_reduced; // 7bit + 1bit zero indicator
+wire [8-1: 0] fifo_0_data_out_reduced, fifo_1_data_out_reduced;// 7 bit + 1 bit zero indicator
+assign fifo_1_data_out = {fifo_1_data_out_reduced[7], {9'b0}, fifo_1_data_out_reduced[6:0]};
+assign fifo_0_data_out = {fifo_0_data_out_reduced[7], {9'b0}, fifo_0_data_out_reduced[6:0]};
+assign fifo_0_data_in_reduced = {fifo_0_data_in[16], fifo_0_data_in[6:0]};
+assign fifo_1_data_in_reduced = {fifo_1_data_in[16], fifo_1_data_in[6:0]};
+FIFO #(
+    .nb_data               ( nb_data                            ),
+    .L_data                         ( 8                           ),// change to 8bits
+    .SRAM_IMPL                      ( SRAM_IMPL                             ))
+AFIFO_0(
+    .DataOut                        ( fifo_0_data_out_reduced                       ),
+    .stk_full                       ( fifo_0_full             ),
+    .stk_almost_full                (              ),
+    .stk_half_full                  (              ),
+    .stk_almost_empty               (              ),
+    .stk_empty                      ( fifo_0_empty            ),
+    .DataIn                         (  fifo_0_data_in_reduced     ),
+    .write                          (  fifo_0_write                         ),
+    .read                           ( fifo_0_read ),
+    .clk                            ( clk                           ),
+    .rst_n                          ( rst_n                         )
+);
+FIFO #(
+    .nb_data               ( nb_data                            ),
+    .L_data                         ( 8                            ), // change to 8bits
+    .SRAM_IMPL                      ( SRAM_IMPL                             ))
+AFIFO_1(
+    .DataOut                        ( fifo_1_data_out_reduced                       ),
+    .stk_full                       ( fifo_1_full             ),
+    .stk_almost_full                (              ),
+    .stk_half_full                  (              ),
+    .stk_almost_empty               (              ),
+    .stk_empty                      ( fifo_1_empty            ),
+    .DataIn                         (  fifo_1_data_in_reduced     ),
+    .write                          (  fifo_1_write                         ),
+    .read                           ( fifo_1_read ),
+    .clk                            ( clk                           ),
+    .rst_n                          ( rst_n                         )
+);
 
 
 endmodule

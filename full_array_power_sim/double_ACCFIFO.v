@@ -69,5 +69,49 @@ ACCFIFO_1(
     .rst_n                          ( rst_n                         )
 );
 
+/*
+To be used when the FIFOs are reduced to 16bits
+*/
+/*
+wire [16-1: 0] ACCFIFO_0_data_out_reduced, ACCFIFO_1_data_out_reduced;
+wire [16-1: 0] data_in_reduced;
+assign ACCFIFO_0_data_out = {8{ACCFIFO_0_data_out_reduced[15]}, ACCFIFO_0_data_out_reduced}; // sign expand
+assign ACCFIFO_1_data_out = {8{ACCFIFO_1_data_out_reduced[15]}, ACCFIFO_1_data_out_reduced}; // sign expand
+assign data_in_reduced = data_in[16-1: 0];
+FIFO #(
+    .nb_data               ( nb_data                            ),
+    .L_data                         ( 16                            ),
+    .SRAM_IMPL                      ( SRAM_IMPL                             ))
+ACCFIFO_0(
+    .DataOut                        ( ACCFIFO_0_data_out_reduced                       ),
+    .stk_full                       (              ),
+    .stk_almost_full                (              ),
+    .stk_half_full                  (              ),
+    .stk_almost_empty               (              ),
+    .stk_empty                      ( ACCFIFO_0_empty             ),
+    .DataIn                         (  data_in_reduced     ),
+    .write                          (  ACCFIFO_0_write                         ),
+    .read                           ( ACCFIFO_0_read ),
+    .clk                            ( clk                           ),
+    .rst_n                          ( rst_n                         )
+);
 
+FIFO #(
+    .nb_data               ( nb_data                           ),
+    .L_data                         ( 16                            ),
+    .SRAM_IMPL                      ( SRAM_IMPL                             ))
+ACCFIFO_1(
+    .DataOut                        ( ACCFIFO_1_data_out_reduced                       ),
+    .stk_full                       (              ),
+    .stk_almost_full                (              ),
+    .stk_half_full                  (              ),
+    .stk_almost_empty               (              ),
+    .stk_empty                      ( ACCFIFO_1_empty             ),
+    .DataIn                         (  data_in_reduced     ),
+    .write                          (  ACCFIFO_1_write                         ),
+    .read                           ( ACCFIFO_1_read ),
+    .clk                            ( clk                           ),
+    .rst_n                          ( rst_n                         )
+);
+*/
 endmodule

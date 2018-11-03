@@ -1,3 +1,4 @@
+`timescale 1ns/1ns
 module ArrayConvLayerCtrl#(parameter
     num_pe_row = 4,
     num_pe_col = 4,

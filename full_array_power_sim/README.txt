@@ -20,3 +20,10 @@ outputbuffer没有专门去进行control，而是直接接到PEArray上面，然
 @(posedge clk); -> @(posedge clk) #(`HOLD_TIME_DELTA); 
 那么一个问题就来了，这个HOLD_TIME_DELTA和原来的#1是不是会重复或者冲突呢？我本来是想把所有的@(posedge clk)后的#1都删了，但是发现在VCS里仿真会有问题。。就是比如遇到一些control在等待testbench内部的其他信号（如singlePEScheduler中等待xxx_valid_trig这个信号的时候，等待的窗口期只有1个cycle，而一开始HOLD_TIME_DELTA也=1， 而原本也#1，导致采样才不采不到。。
 最后想了，觉得其实应该这样, HOLD_TIME_DELTA设置为比如0.5，即小于原来常用的1，那么对于原本需要#1的地方，那个posedge clk还是和原来一样的，被当作一个没有hold-time delta的posedge clk。 然后应该就可以正常工作了。
+
+8. 16b DataPath做了功耗分析之后power太大了，所以要把datapath的width降下来来降低功耗，主要是从16b降低到8b，还有把11tap搞成3tap，因为3tap是最常用的。具体方法是保留各个模块的接口为16b，但是多余的线置零或者符号扩展，希望DC能够自动优化，具体如下：
+	8a. 在WBuff中将ram改成8bit的，但是WBuff模块的接口还是16b的，只不过把多余的bit都置成0，另外多余的tap也置0。
+	8b. ActBuff和WBuff一样，17bits->8bits，原本的zero indicator还是最高位，但是不存sign bit了，默认为0。
+	8c. PEArrayDataInWrapper中，把多余的taps置零
+	8d. PE的AFIFO换成了8bits的，但是输入输出还是17bits，因为activation是不需要符号位的。
+	8e. PE的ACCFIFO原本是24bits，占了大部分功耗，但是经过仿真发现，几乎不会遇到在ACCFIFO output需要超过16bits的，所以最后ACCFIFO的位宽可以调整成16bits。仍然是将DoubleACCFIFO中做截断和符号扩展。

@@ -287,6 +287,39 @@ module FPAP_Ctrl_tb #(
     int end_layer;
     int current_layer;
 
+
+    /** Record the range of accfifo output**/
+    logic [64-1: 0] accfifo_out_over_16b_time;
+    logic [64-1: 0] total_change_time;
+    logic [64-1: 0] accfifo_out_over_20b_time;
+    logic [24-1: 0] pe_array_out_even, pe_array_out_odd;
+    assign pe_array_out_even = u_FPAP_for_power_analysis.array_out_even_col;
+    assign pe_array_out_odd = u_FPAP_for_power_analysis.array_out_odd_col;
+    initial begin
+    total_change_time = 64'b0;
+    accfifo_out_over_16b_time = 64'b0;
+    accfifo_out_over_20b_time = 64'b0; 
+    end
+    always@(pe_array_out_even) begin
+        if($signed(pe_array_out_even) > $signed(16'h7fff) || $signed(pe_array_out_even) < $signed(16'h8000)) begin
+            accfifo_out_over_16b_time += 1;
+        end
+        if($signed(pe_array_out_even) > $signed(20'h7ffff) || $signed(pe_array_out_even) < $signed(20'h80000)) begin
+            accfifo_out_over_20b_time += 1;
+        end
+        total_change_time += 1;
+    end
+    always@(pe_array_out_odd) begin
+        if($signed(pe_array_out_odd) > $signed(16'h7fff) || $signed(pe_array_out_odd) < $signed(16'h8000)) begin
+            accfifo_out_over_16b_time += 1;
+        end
+        if($signed(pe_array_out_odd) > $signed(20'h7ffff) || $signed(pe_array_out_odd) < $signed(20'h80000)) begin
+            accfifo_out_over_20b_time += 1;
+        end
+        total_change_time += 1;
+    end
+
+
     /******Main**********/
     initial begin
         string act_file_path;
@@ -301,8 +334,8 @@ module FPAP_Ctrl_tb #(
         logic [64-1: 0] start_time;
         logic [64-1: 0] end_time;
         int cycle_this_layer;
-        start_layer = 1;
-        end_layer = 40;
+        start_layer = 5;
+        end_layer = 50;
         //act_dir_path = "C:/Users/jy/Desktop/mopu-testbench/testdata/mobilenet";
         act_dir_path = "C:/Users/jy/Desktop/mopu-testbench/testdata/a8w8";
         weight_file_path = {act_dir_path, "/weights"};
@@ -378,10 +411,14 @@ module FPAP_Ctrl_tb #(
             else begin
                 $fdisplay(log_fp, "%d\tN/A\tN/A\tN/A\tN/A\tN/A\tN/A\tN/A", current_layer);
             end
+            $display("Total number of accfifo_out change time is: %d, over16b time is: %d, over20b time is: %d", total_change_time, accfifo_out_over_16b_time, accfifo_out_over_20b_time);
         end
         $fclose(log_fp);
+        $display("Total number of accfifo_out change time is: %d, over16b time is: %d, over20b time is: %d", total_change_time, accfifo_out_over_16b_time, accfifo_out_over_20b_time);
         $finish;
     end
+
+
 
 //************************************************************************
 //function called clogb2 that returns an integer which has the
